@@ -1,0 +1,13 @@
+{
+  "name": "esp32-dht22-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ESP32 DHT22 Wi-Fi upper-computer dashboard",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ESP32 环境监测</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">ESP32 · DHT22</p><h1>温湿度检测</h1></div>
+      <span id="state" class="state offline">等待设备</span>
+    </header>
+    <section class="cards">
+      <article><span>温度</span><strong id="temperature">--.-</strong><em>°C</em></article>
+      <article><span>湿度</span><strong id="humidity">--.-</strong><em>%RH</em></article>
+      <article><span>Wi‑Fi 信号</span><strong id="rssi">---</strong><em>dBm</em></article>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>最近趋势</h2><span id="updated">尚未收到数据</span></div>
+      <canvas id="chart" height="300"></canvas>
+      <div class="legend"><i class="temp"></i>温度 <i class="hum"></i>湿度</div>
+    </section>
+    <footer><span id="device">设备：--</span><span id="uptime">运行：--</span></footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

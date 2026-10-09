@@ -1,0 +1,20 @@
+# Local credentials
+firmware/include/config.h
+.env
+.env.*
+!.env.example
+
+# Build caches and local tooling
+**/.pio/
+**/__pycache__/
+*.pyc
+node_modules/
+.mimosa/
+cyd-environment/platformio.recovery.ini
+
+# Original vendor package and device flash backups
+2.8inch__ESP32-2432S028R/
+cyd-environment/backups/
+
+# Runtime measurements
+environment.csv
