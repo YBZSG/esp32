@@ -1,37 +1,10 @@
-<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#08111f">
-  <title>ESP32 环境监测</title>
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-  <main>
-    <header>
-      <div><p class="eyebrow">ESP32 CYD · 只读监控</p><h1>环境监测</h1></div>
-      <span id="state" class="state offline">等待设备</span>
-    </header>
-    <div id="alert" class="alert" hidden><strong>环境提醒</strong><span id="alertText"></span></div>
-    <section class="cards">
-      <article><span>温度</span><strong id="temperature">--.-</strong><em>°C</em></article>
-      <article><span>湿度</span><strong id="humidity">--.-</strong><em>%RH</em></article>
-      <article><span>结露余量</span><strong id="margin">--.-</strong><em>°C</em></article>
-    </section>
-    <section class="panel facts" aria-label="环境细节">
-      <div><span>露点</span><b id="dew">--</b></div>
-      <div><span>绝对湿度</span><b id="absolute">--</b></div>
-      <div><span>霉变风险</span><b id="mold">--</b></div>
-      <div><span>最近事件</span><b id="event">--</b></div>
-    </section>
-    <section class="panel">
-      <div class="panel-head"><h2>最近趋势</h2><span id="updated">尚未收到数据</span></div>
-      <canvas id="chart" height="300"></canvas>
-      <div class="legend"><i class="temp"></i>温度 <i class="hum"></i>湿度</div>
-    </section>
-    <footer><span id="device">设备：--</span><span>只读数据，设置请在本机局域网打开设备网页</span></footer>
-  </main>
-  <script src="/app.js"></script>
-</body>
-</html>
+<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f4f6ef"><link rel="icon" type="image/png" href="/leaf.png"><title>环境观察室 · 上位机</title><link rel="stylesheet" href="/style.css"></head>
+<body><main><header><strong class="brand"><img class="mark" src="/leaf.png" alt="">环境观察室</strong><span id="state" class="state offline">等待设备</span></header>
+<nav aria-label="主要页面"><a href="/" aria-current="page">环境总览</a><a id="assistantLink" href="/assistant" hidden>智能助手 ↗</a></nav>
+<div id="alert" class="alert" hidden><strong>环境提醒</strong> <span id="alertText"></span></div>
+<section class="panel live"><div class="panel-head"><h1>室内实测</h1><small id="updated">等待第一条读数</small></div>
+<div class="cards"><article><span>温度</span><strong id="temperature">—</strong><em>℃</em></article><article><span>相对湿度</span><strong id="humidity">—</strong><em>%</em></article><article><span>结露余量</span><strong id="margin">—</strong><em>℃</em></article></div>
+<p id="advice" class="advice" hidden></p></section>
+<div class="columns"><section class="panel"><div class="panel-head"><h2>最近趋势</h2><small id="period"></small></div><p id="chartEmpty" class="empty">积累两条读数后显示趋势。</p><canvas id="chart" role="img" aria-label="温度和相对湿度趋势" hidden></canvas></section>
+<section class="panel"><h2>环境细节</h2><dl><div><dt>露点</dt><dd id="dew">—</dd></div><div><dt>绝对湿度</dt><dd id="absolute">—</dd></div><div><dt>霉变风险</dt><dd id="mold">—</dd></div><div><dt>最近事件</dt><dd id="event">—</dd></div></dl><small id="device">等待设备</small></section></div></main><script src="/app.js"></script></body></html>

@@ -20,7 +20,16 @@ bool cardReady = false;
 bool mikuAssetReady = false;
 uint32_t lastCardLog = 0;
 FsFile mikuUploadFile;
-bool mikuUploadActive = false;
+const char* const skinFiles[] = {"miku.rle", "rabbit.rle", "fox.rle", "penguin.rle"};
+const char* const skinNames[] = {"Miku", "月兔", "赤狐", "围巾企鹅"};
+constexpr unsigned SKIN_COUNT = sizeof(skinFiles) / sizeof(*skinFiles);
+uint8_t selectedSkin = 0, availableSkins = 0;
+bool speakReplies = true;
+bool readingReply = false;
+int uploadSkin = -1;
+String uploadError;
+bool readPetIndex(const char* path, bool activate = false, bool checkPixels = false);
+void drawPetFrame();
 WebSocketsClient qwenSocket;
 String qwenKey;
 String qwenVoice = "Cherry";
@@ -70,6 +79,15 @@ TaskHandle_t audioTaskHandle = nullptr;
 #include "board_config.h"
 #include "display.h"
 #include "web_ui.h"
+#include "bubble_layout.h"
+#include "leaf_mark.h"
+#include <StreamString.h>
+extern const char assistantPage[] asm("_binary_web_assistant_html_start");
+extern const char assistantEnd[] asm("_binary_web_assistant_html_end");
+extern const char petPreviews[] asm("_binary_web_pets_png_start");
+extern const char petPreviewsEnd[] asm("_binary_web_pets_png_end");
+extern const char leafPng[] asm("_binary_web_leaf_png_start");
+extern const char leafEnd[] asm("_binary_web_leaf_png_end");
 #include <driver/dac.h>
 
 // Miku animation is stored as miku.rle on the TF card. The original header is
@@ -99,7 +117,12 @@ Adafruit_SHT31 sht(&Wire);
 Preferences prefs;
 WebServer web(80);
 bool webStarted = false;
-struct ChatJob { String question; String answer; SemaphoreHandle_t done = nullptr; } chatJob;
+struct ChatJob {
+  String question, answer, id;
+  JsonDocument history;
+  bool ok = false, scoped = false;
+  SemaphoreHandle_t done = nullptr;
+} chatJob;
 bool chatBusy = false;
 // Set while the pet sprite is temporarily released so mbedTLS / large WS
 // frames can allocate contiguous heap on this no-PSRAM board.
@@ -128,7 +151,7 @@ uint16_t C_BG, C_PANEL, C_BLUE, C_CYAN, C_GREEN, C_YELLOW, C_RED, C_TEXT, C_MUTE
 bool darkMode = false;
 
 enum Page { DASHBOARD, TREND, PET, OUTDOOR, WIFI_LIST, KEYBOARD };
-Page page = DASHBOARD;
+Page page = PET;
 
 enum PetMotion { PET_AUTO, PET_IDLE, PET_WAVE, PET_JUMP, PET_FAILED, PET_WAITING, PET_WORKING, PET_REVIEW, PET_LOOK };
 PetMotion petMotion = PET_AUTO;
@@ -691,7 +714,10 @@ String askDeepSeek(const String& question) {
   WiFiClientSecure secure;
   secure.setInsecure();
   HTTPClient http;
-  http.setTimeout(25000);
+  // HTTPClient configures the socket timeout, but this ESP32 core leaves
+  // Stream's chunk-header timeout at 1 s. Longer completions need both.
+  secure.Stream::setTimeout(60000);
+  http.setTimeout(60000);
   if (!http.begin(secure, "https://api.deepseek.com/chat/completions")) {
     Serial.println("DeepSeek: http.begin failed");
     result = "无法建立 DeepSeek 连接。";
@@ -705,19 +731,29 @@ String askDeepSeek(const String& question) {
     JsonArray messages = request["messages"].to<JsonArray>();
     JsonObject system = messages.add<JsonObject>();
     system["role"] = "system";
-    String context = "你是触摸屏宠物Miku，用简短自然的中文陪伴用户。当前温度" + jsonNumber(temperature) +
-                     "摄氏度，湿度" + jsonNumber(humidity) + "%，环境状态：" + environmentLevel() +
-                     "。回答可参考环境数据，但不要把每个话题都强行转成环境建议。";
-    if (lastEventText.length() && lastEventAt && millis() - lastEventAt < 30UL * 60 * 1000) {
-      context += "最近环境事件：" + lastEventText + "。";
-    }
+    String context = "你是 Miku，室内环境与节能助手。先回答用户当前问题，结合实测值说明判断依据，给出可执行的步骤和复测条件。"
+                     "区分实测、短时趋势和推测。结露余量是室温减露点，设备未测窗面或墙温；评估结露时说明表面温度与露点的关系。"
+                     "null 表示无数据。上下文不足时说明缺少哪项信息。"
+                     "日常闲聊自然简短。用简体中文和短段落回答。当前室内温度(℃) " + jsonNumber(temperature) +
+                     "，相对湿度(%) " + jsonNumber(humidity) + "，露点(℃) " + jsonNumber(dewPoint(temperature, humidity)) +
+                     "，结露余量(℃) " + jsonNumber(condensationMargin()) + "，湿度风险持续分钟 " + String(moldMinutes) +
+                     "，十分钟温湿度趋势估计 " + jsonNumber(forecastT) + "℃ / " + jsonNumber(forecastH) + "%。";
+    if (outdoorValid()) context += "室外 " + weatherPlace + " " + jsonNumber(outT) + "℃ / " + jsonNumber(outH) +
+                                  "%，更新于 " + String((millis() - weatherAt) / 60000) + " 分钟前。";
+    if (lastEventText.length() && lastEventAt && millis() - lastEventAt < 1800000UL)
+      context += "近期环境事件：" + lastEventText;
     system["content"] = context;
+    for (JsonObject turn : chatJob.history.as<JsonArray>()) messages.add(turn);
+    chatJob.history.clear();
     JsonObject user = messages.add<JsonObject>();
     user["role"] = "user"; user["content"] = question;
     String body; serializeJson(request, body);
+    request.clear();
     Serial.printf("DeepSeek: POST, free heap=%u\n", ESP.getFreeHeap());
     int code = http.POST(body);
-    String response = http.getString();
+    body = String();
+    StreamString response;
+    int received = code == 200 ? http.writeToStream(&response) : 0;
     char tlsErr[64] = {0};
     secure.lastError(tlsErr, sizeof(tlsErr));
     Serial.printf("DeepSeek: code=%d (%s), respLen=%u, heap=%u, tlsErr=%s\n",
@@ -728,11 +764,14 @@ String askDeepSeek(const String& question) {
       result = "DeepSeek 请求失败（HTTP " + String(code) + "），请检查密钥或额度。";
     } else {
       JsonDocument doc;
-      if (deserializeJson(doc, response)) {
+      if (received < 0) {
+        result = "回复接收中断：" + http.errorToString(received);
+      } else if (deserializeJson(doc, response.c_str())) {
         result = "DeepSeek 返回内容无法解析。";
       } else {
         const char* answer = doc["choices"][0]["message"]["content"] | "";
-        result = strlen(answer) ? String(answer) : String("DeepSeek 没有返回内容。");
+        chatJob.ok = strlen(answer) > 0;
+        result = chatJob.ok ? String(answer) : String("DeepSeek 没有返回内容。");
       }
     }
   }
@@ -1158,6 +1197,7 @@ bool startQwenTts(const String& text) {
   }
   if (!audioReady || WiFi.status() != WL_CONNECTED || !text.length()) return false;
   if (ttsBusy || audioDacRunning || audioRingCount()) return false;
+  readingReply = false;
   // 释放约 27 KB 的宠物精灵，给 TLS 握手和较大的音频帧腾出连续堆空间。
   // 不管当前在哪一页都释放：碎片化的堆会让 WebSocket 帧 malloc 失败（1011）。
   // 播放结束后由 loop() 在 ttsBusy 变回 false 时自动重建。
@@ -1280,31 +1320,110 @@ void startWebServer() {
   web.on("/storage", HTTP_GET, [] {
     if (!cardReady) { web.send(200, "text/plain; charset=utf-8", "TF卡未挂载，请断电后检查卡片。"); return; }
     String status = "TF卡已挂载；environment.csv 每分钟记录温湿度。";
-    status += mikuAssetReady ? " Miku动画已就绪。" : " Miku动画文件缺失或损坏。";
+    status += mikuAssetReady ? String(" 当前外观：") + skinNames[selectedSkin] : String(" 当前外观文件缺失或损坏。");
     web.send(200, "text/plain; charset=utf-8", status);
   });
+  web.on("/assistant", HTTP_GET, [] {
+    web.send_P(200, "text/html; charset=utf-8", assistantPage, assistantEnd - assistantPage);
+  });
+  web.on("/pets.png", HTTP_GET, [] {
+    web.send_P(200, "image/png", petPreviews, petPreviewsEnd - petPreviews);
+  });
+  web.on("/leaf.png", HTTP_GET, [] {
+    web.send_P(200, "image/png", leafPng, leafEnd - leafPng);
+  });
+  web.on("/assistant/state", HTTP_GET, [] {
+    JsonDocument state;
+    state["temperature"] = jsonNumber(temperature);
+    state["humidity"] = jsonNumber(humidity);
+    state["level"] = environmentLevel();
+    state["keyReady"] = deepseekKey.length() > 0;
+    state["voiceReady"] = isLikelyQwenKey(qwenKey);
+    state["speak"] = speakReplies;
+    state["skin"] = selectedSkin;
+    state["available"] = availableSkins;
+    state["card"] = cardReady;
+    state["busy"] = chatBusy || ttsBusy || weatherBusy || audioDacRunning || audioRingCount();
+    state["playing"] = ttsBusy || (voicePlayback && audioDacRunning);
+    String body; serializeJson(state, body);
+    web.sendHeader("Cache-Control", "no-store");
+    web.send(200, "application/json", body);
+  });
+  web.on("/assistant/settings", HTTP_POST, [] {
+    if (web.hasArg("speak") && (web.arg("speak") == "1" || web.arg("speak") == "0")) {
+      const bool enabled = web.arg("speak") == "1";
+      if (speakReplies != enabled && !prefs.putBool("speakReplies", enabled)) {
+        web.send(500, "text/plain", "朗读设置保存失败"); return;
+      }
+      speakReplies = enabled;
+      if (!enabled && readingReply && voicePlayback && (ttsBusy || audioRingCount())) {
+        ttsError = true;
+        qwenSocketEnabled = false;
+        qwenSocket.disconnect();
+        audioRingClear();
+        ttsBusy = false;
+        readingReply = false;
+        ttsStatus = "已停止朗读";
+      }
+    } else if (web.hasArg("skin")) {
+      unsigned slot = 0;
+      while (slot < SKIN_COUNT && web.arg("skin") != String(slot)) ++slot;
+      if (slot == SKIN_COUNT || !(availableSkins & (1U << slot))) {
+        web.send(400, "text/plain", "请先将此外观安装到 TF 卡"); return;
+      }
+      if (!readPetIndex(skinFiles[slot], true)) {
+        web.send(422, "text/plain", "外观文件不可读"); return;
+      }
+      if (selectedSkin != slot && !prefs.putUChar("petSkin", slot)) {
+        readPetIndex(skinFiles[selectedSkin], true);
+        web.send(500, "text/plain", "外观设置保存失败"); return;
+      }
+      selectedSkin = slot;
+      mikuAssetReady = true;
+      petFrame = 0;
+      if (page == PET && !petCanvasHeld) drawPetPage();
+    } else { web.send(400, "text/plain", "未知设置"); return; }
+    web.send(200, "text/plain", "已保存");
+  });
   web.on("/miku-upload", HTTP_GET, [] {
-    web.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>更新 Miku 动画</title><link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回环境健康助手</a><h1>更新 Miku 动画</h1><form method='post' enctype='multipart/form-data'><input type='file' name='miku' accept='.rle' required><button>写入 TF 卡</button></form><p>文件名必须为 miku.rle，写入后重启设备。</p>");
+    web.send(200, "text/html; charset=utf-8", "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>安装宠物外观</title><link rel=stylesheet href=/ui.css><body class=settings-page><a class=back href=/assistant>返回智能助手</a><h1>安装宠物外观</h1><p>选择 miku.rle、rabbit.rle、fox.rle 或 penguin.rle。文件校验成功后即可切换外观。</p><form method=post enctype=multipart/form-data><input type=file name=pet accept=.rle required><button>写入 TF 卡</button></form>");
   });
   web.on("/miku-upload", HTTP_POST, [] {
-    if (mikuUploadFile) mikuUploadFile.close();
-    mikuUploadActive = false;
-    web.send(cardReady ? 200 : 503, "text/plain; charset=utf-8", cardReady ? "Miku 动画已写入 TF 卡，请重启设备后生效。" : "TF 卡未挂载，无法写入。");
+    if (!cardReady || uploadError.length() || uploadSkin < 0) {
+      web.send(cardReady ? 422 : 503, "text/plain; charset=utf-8", cardReady && uploadError.length() ? uploadError : String("缺少有效上传或 TF 卡")); return;
+    }
+    uploadSkin = -1;
+    web.send(200, "text/html; charset=utf-8", "<meta charset=utf-8><p>外观已安装。<a href=/assistant>返回智能助手选择外观</a></p>");
   }, [] {
-    HTTPUpload& upload = web.upload();
+    HTTPUpload& u = web.upload();
     if (!cardReady) return;
-    if (upload.status == UPLOAD_FILE_START) {
-      if (mikuUploadFile) mikuUploadFile.close();
-      mikuUploadFile = storage.open("miku.rle", O_WRONLY | O_CREAT | O_TRUNC);
-      mikuUploadActive = (bool)mikuUploadFile;
-      Serial.printf("Miku upload start: %s\n", upload.filename.c_str());
-    } else if (upload.status == UPLOAD_FILE_WRITE && mikuUploadActive) {
-      mikuUploadFile.write(upload.buf, upload.currentSize);
-    } else if (upload.status == UPLOAD_FILE_END && mikuUploadActive) {
-      mikuUploadFile.flush();
-      mikuUploadFile.close();
-      mikuUploadActive = false;
-      Serial.printf("Miku upload complete: %u bytes\n", upload.totalSize);
+    if (u.status == UPLOAD_FILE_START) {
+      uploadSkin = -1; uploadError = "";
+      for (unsigned i = 0; i < SKIN_COUNT; ++i) if (u.filename == skinFiles[i]) uploadSkin = i;
+      if (uploadSkin < 0) { uploadError = "不支持此外观文件名"; return; }
+      mikuUploadFile = storage.open("pet.tmp", O_WRONLY | O_CREAT | O_TRUNC);
+      if (!mikuUploadFile) uploadError = "无法在 TF 卡创建临时文件";
+    } else if (u.status == UPLOAD_FILE_WRITE && mikuUploadFile && !uploadError.length()) {
+      if (u.totalSize + u.currentSize > MIKU_ASSET_HEADER + MIKU_FRAME_COUNT * (MIKU_RLE_MAX + MIKU_ASSET_INDEX_ENTRY) ||
+          mikuUploadFile.write(u.buf, u.currentSize) != u.currentSize) uploadError = "文件过大或 TF 卡写入失败";
+    } else if (u.status == UPLOAD_FILE_END || u.status == UPLOAD_FILE_ABORTED) {
+      if (mikuUploadFile && !mikuUploadFile.close()) uploadError = "TF 卡文件关闭失败";
+      if (u.status == UPLOAD_FILE_ABORTED) uploadError = "上传中断";
+      if (!uploadError.length() && !readPetIndex("pet.tmp", false, true)) uploadError = "动画文件校验失败";
+      if (!uploadError.length() && uploadSkin >= 0) {
+        String name = skinFiles[uploadSkin], backup = name + ".bak";
+        if (storage.exists(backup) && (!storage.exists(name) || !storage.remove(backup))) uploadError = "上次安装尚待恢复";
+        if (!uploadError.length() && storage.exists(name) && !storage.rename(name, backup)) uploadError = "无法备份原动画";
+        if (!uploadError.length() && !storage.rename("pet.tmp", name)) {
+          if (storage.exists(backup)) storage.rename(backup, name);
+          uploadError = "替换动画文件失败";
+        }
+        if (!uploadError.length()) {
+          availableSkins |= 1U << uploadSkin;
+          if (uploadSkin == selectedSkin) mikuAssetReady = readPetIndex(name.c_str(), true);
+        }
+      }
+      if (storage.exists("pet.tmp")) storage.remove("pet.tmp");
     }
   });
   web.on("/api", HTTP_GET, [] {
@@ -1499,12 +1618,33 @@ void startWebServer() {
     web.send(200, "text/plain; charset=utf-8", ttsBusy ? "正在播放：" + ttsStatus : ttsStatus);
   });
   web.on("/deepseek/chat", HTTP_POST, [] {
-    Serial.printf("CHAT req: chatBusy=%d ttsBusy=%d len=%d heap=%u largest=%u\n",
-                  (int)chatBusy, (int)ttsBusy, web.arg("plain").length(),
-                  ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    if (chatBusy || ttsBusy || audioDacRunning || audioRingCount()) { web.send(409, "text/plain; charset=utf-8", "请等待上一条回复或语音播放结束"); return; }
-    String question = web.arg("plain"); question.trim();
-    if (!question.length() || question.length() > 600) { web.send(400, "text/plain; charset=utf-8", "请输入 1～600 字的问题。"); return; }
+    if (chatBusy || ttsBusy || weatherBusy || audioDacRunning || audioRingCount()) { web.send(409, "text/plain; charset=utf-8", "设备正在处理上一项任务，请稍后重发。"); return; }
+    if (!deepseekKey.length()) { web.send(422, "text/plain; charset=utf-8", "请先在设备页保存 DeepSeek 密钥。"); return; }
+    String question;
+    const bool scoped = web.hasArg("turn");
+    JsonDocument payload;
+    if (scoped) {
+      if (web.arg("plain").length() > 10000 || deserializeJson(payload, web.arg("plain")) ||
+          !payload["history"].is<JsonArray>() || !payload["question"].is<String>()) {
+        web.send(400, "text/plain", "消息格式无效"); return;
+      }
+      JsonArray history = payload["history"];
+      size_t i = 0, bytes = 0;
+      bool valid = history.size() <= 8 && history.size() % 2 == 0;
+      for (JsonObject turn : history) {
+        const char* content = turn["content"] | "";
+        bytes += strlen(content);
+        if (!*content || turn.size() != 2 || turn["role"] != (i++ % 2 ? "assistant" : "user")) valid = false;
+      }
+      if (!valid || bytes > 3600) { web.send(400, "text/plain", "上下文超过窗口或轮次不完整"); return; }
+      question = payload["question"].as<String>();
+    } else question = web.arg("plain");
+    question.trim();
+    if (!question.length() || question.length() > 600) { web.send(400, "text/plain; charset=utf-8", "问题限 1 至 600 字节。"); return; }
+    chatJob.history.set(payload["history"]);
+    chatJob.scoped = scoped;
+    chatJob.id = String(esp_random(), HEX) + "-" + String(esp_random(), HEX);
+    chatJob.ok = false;
     page = PET;
     petReply = "Miku：正在思考…";
     startPetMotion(PET_WORKING, 30000);
@@ -1525,12 +1665,15 @@ void startWebServer() {
       web.send(503, "text/plain; charset=utf-8", petReply);
       return;
     }
-    web.send(202, "text/plain; charset=utf-8", "Miku 正在思考…");
+    web.send(202, "text/plain; charset=utf-8", scoped ? chatJob.id : String("Miku 正在思考…"));
   });
   web.onNotFound([] { web.send(404, "text/plain; charset=utf-8", "页面不存在"); });
   web.on("/deepseek/result", HTTP_GET, [] {
     web.sendHeader("Cache-Control", "no-store");
-    web.send(chatBusy ? 202 : 200, "text/plain; charset=utf-8", chatBusy ? String("Thinking...") : chatJob.answer);
+    if ((chatJob.scoped || web.hasArg("id")) && web.arg("id") != chatJob.id) {
+      web.send(410, "text/plain; charset=utf-8", "这条回复已过期，请重新发送。"); return;
+    }
+    web.send(chatBusy ? 202 : (chatJob.ok ? 200 : 502), "text/plain; charset=utf-8", chatBusy ? String("Thinking...") : chatJob.answer);
   });
   web.begin();
   webStarted = true;
@@ -1565,7 +1708,13 @@ void drawHeaderStatus() {
 void drawHeader(const String& title) {
   lcd.fillScreen(C_BG);
   lcd.fillRect(0, 0, 240, 34, C_HEADER);
-  text(title, 10, 8, C_TEXT, true);
+  for (int y = 0; y < 23; ++y) {
+    for (int x = 0; x < 23; ++x) {
+      const char ink = leafMark[y][x];
+      if (ink != ' ') lcd.drawPixel(4 + x, 5 + y, ink == '+' ? 0xB628 : darkMode ? 0x7D70 : 0x2267);
+    }
+  }
+  text(title, 29, 8, C_TEXT, true);
   if (title == "环境数据") drawHeaderStatus();
   lcd.fillCircle(195, 17, 4, WiFi.status() == WL_CONNECTED ? C_GREEN : C_MUTED);
   button(darkMode ? "日" : "夜", 202, 4, 31, 26, C_PANEL);
@@ -1616,27 +1765,38 @@ uint32_t le32(const uint8_t* p) {
   return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-bool loadMikuAsset() {
-  mikuAssetReady = false;
-  if (!cardReady) return false;
-  FsFile file = storage.open("miku.rle", O_RDONLY);
-  if (!file) return false;
+bool readPetIndex(const char* path, bool activate, bool checkPixels) {
+  FsFile file = storage.open(path, O_RDONLY);
   uint8_t header[MIKU_ASSET_HEADER];
-  bool valid = file.read(header, sizeof(header)) == sizeof(header) &&
-               memcmp(header, "MKU1", 4) == 0 && le16(header + 4) == MIKU_W &&
-               le16(header + 6) == MIKU_H && le16(header + 8) == MIKU_FRAME_COUNT;
-  if (valid) {
-    for (uint8_t i = 0; i < MIKU_FRAME_COUNT; ++i) {
-      uint8_t entry[MIKU_ASSET_INDEX_ENTRY];
-      if (file.read(entry, sizeof(entry)) != sizeof(entry)) { valid = false; break; }
-      mikuFrameOffsets[i] = le32(entry);
-      mikuFrameSizes[i] = le16(entry + 4);
-      if (!mikuFrameSizes[i] || mikuFrameSizes[i] > MIKU_RLE_MAX) { valid = false; break; }
+  if (!file || file.read(header, sizeof(header)) != sizeof(header) || memcmp(header, "MKU1", 4) ||
+      le16(header + 4) != MIKU_W || le16(header + 6) != MIKU_H || le16(header + 8) != MIKU_FRAME_COUNT) return false;
+  uint16_t sizes[MIKU_FRAME_COUNT];
+  uint32_t offset = MIKU_ASSET_HEADER + MIKU_FRAME_COUNT * MIKU_ASSET_INDEX_ENTRY;
+  for (auto& size : sizes) {
+    uint8_t entry[MIKU_ASSET_INDEX_ENTRY];
+    if (file.read(entry, sizeof(entry)) != sizeof(entry) || le32(entry) != offset) return false;
+    size = le16(entry + 4);
+    if (!size || size > MIKU_RLE_MAX || size % 3) return false;
+    offset += size;
+  }
+  if (offset != file.fileSize()) return false;
+  if (checkPixels) {
+    for (auto size : sizes) {
+      if (file.read(mikuRle, size) != size) return false;
+      uint32_t pixels = 0;
+      for (int i = 0; i < size; i += 3) pixels += mikuRle[i];
+      if (pixels != MIKU_W * MIKU_H) return false;
+      yield();
     }
   }
-  file.close();
-  mikuAssetReady = valid;
-  return valid;
+  if (activate) {
+    for (int i = MIKU_FRAME_COUNT - 1; i >= 0; --i) {
+      offset -= sizes[i];
+      mikuFrameOffsets[i] = offset;
+      mikuFrameSizes[i] = sizes[i];
+    }
+  }
+  return true;
 }
 
 // RLE 帧直接从 TF 卡解码进宠物画布，不再经过整帧 RAM 缓冲（petPixels 曾占
@@ -1644,7 +1804,7 @@ bool loadMikuAsset() {
 void decodeMikuFrame(uint8_t index) {
   uint16_t size = 0;
   if (mikuAssetReady && index < MIKU_FRAME_COUNT) {
-    FsFile file = storage.open("miku.rle", O_RDONLY);
+    FsFile file = storage.open(skinFiles[selectedSkin], O_RDONLY);
     if (file && file.seekSet(mikuFrameOffsets[index])) {
       size_t got = file.read(mikuRle, mikuFrameSizes[index]);
       if (got == mikuFrameSizes[index]) size = mikuFrameSizes[index];
@@ -1666,7 +1826,7 @@ void decodeMikuFrame(uint8_t index) {
 }
 
 void drawPetFrame() {
-  if (!petCanvasReady) return;  // sprite released (network session / other page)
+  if (!petCanvasReady || !mikuAssetReady) return;  // sprite released (network session / other page)
   ensurePetCanvasMux();
   if (!petCanvasMux || xSemaphoreTake(petCanvasMux, pdMS_TO_TICKS(200)) != pdTRUE) return;
   if (!petCanvasReady) { xSemaphoreGive(petCanvasMux); return; }
@@ -1715,16 +1875,22 @@ void drawPetConversation() {
   lcd.setFont(&fonts::efontCN_14);
   lcd.setTextSize(1);
   lcd.setTextColor(C_TEXT, bubble);
-  lcd.setCursor(18, 49);
-  lcd.setTextWrap(true, false);
-  lcd.print(petReply);
+  lcd.setTextDatum(textdatum_t::top_left);
+  BubbleLine lines[3];
+  int count = layoutBubble(petReply.c_str(), 204, lines, [](const char* glyph) { return lcd.textWidth(glyph); });
+  for (int i = 0; i < count; ++i) {
+    String line = petReply.substring(lines[i].start, lines[i].end);
+    if (lines[i].ellipsis) line += "…";
+    lcd.drawString(line, 18, 49 + i * 14);
+  }
   lcd.clearClipRect();
 }
 
 void drawPetPage() {
-  drawHeader("Miku");
+  drawHeader(skinNames[selectedSkin]);
   panel(6, 41, 228, 232);
-  drawPetFrame();
+  if (mikuAssetReady) drawPetFrame();
+  else text(cardReady ? "请在网页安装宠物外观" : "请检查 TF 卡", 38, 174, C_MUTED);
   drawPetConversation();
   lcd.setFont(&fonts::efontCN_14); lcd.setTextSize(1); lcd.setTextColor(C_MUTED);
   lcd.setTextDatum(textdatum_t::top_center);
@@ -2065,7 +2231,6 @@ void requestWeatherFetch() {
 }
 
 void serviceWeather() {
-  if (page == PET) return;  // 宠物页需要 27 KB 画布，自动刷新留给其他页面
   if (weatherBusy || chatBusy || ttsBusy || audioDacRunning || audioRingCount() > 0) return;
   if (WiFi.status() != WL_CONNECTED) return;
   const uint32_t now = millis();
@@ -2363,8 +2528,22 @@ void setup() {
   Serial.printf("SHT3x: %s\n", sht.begin(SHT3X_ADDR) ? "ready" : "not found");
   cardReady = storage.begin(SdSpiConfig(5, DEDICATED_SPI, SD_SCK_MHZ(4), &cardSpi));
   Serial.printf("TF card: %s\n", cardReady ? "mounted" : "unavailable");
-  Serial.printf("Miku asset: %s\n", loadMikuAsset() ? "miku.rle ready" : "missing or invalid");
   restoreWifi();
+  speakReplies = prefs.getBool("speakReplies", true);
+  selectedSkin = prefs.getUChar("petSkin", 0);
+  if (cardReady) {
+    for (unsigned i = 0; i < SKIN_COUNT; ++i) {
+      String backup = String(skinFiles[i]) + ".bak";
+      if (!storage.exists(skinFiles[i]) && storage.exists(backup)) storage.rename(backup, skinFiles[i]);
+      if (readPetIndex(skinFiles[i])) availableSkins |= 1U << i;
+    }
+  }
+  if (selectedSkin >= SKIN_COUNT || !(availableSkins & (1U << selectedSkin))) {
+    selectedSkin = 0;
+    if (availableSkins) while (!(availableSkins & (1U << selectedSkin))) ++selectedSkin;
+  }
+  mikuAssetReady = availableSkins && readPetIndex(skinFiles[selectedSkin], true);
+  Serial.printf("Pet skins: mask=%u selected=%u\n", availableSkins, selectedSkin);
   drawPage();
 }
 
@@ -2388,6 +2567,14 @@ void loop() {
           Serial.printf("Heap: free=%u largest=%u\n", (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
         } else if (cmd == "status") {
           Serial.println(telemetryJson());
+        } else if (cmd == "screen" && !ttsBusy && !audioDacRunning) {
+          // Binary PPM from display RAM, one scanline at a time.
+          uint8_t row[240 * 3];
+          Serial.print("P6\n240 320\n255\n");
+          for (int y = 0; y < 320; ++y) {
+            lcd.readRectRGB(0, y, 240, 1, row);
+            Serial.write(row, sizeof(row));
+          }
         } else if (cmd == "day") {
           Serial.println(history24Json());
         } else if (cmd == "quiettone") {
@@ -2432,7 +2619,7 @@ void loop() {
     lastCanvasRetry = millis();
     if (page == PET) {
       releasePetCanvas();
-      if (petCanvasReady) drawPetFrame();
+      if (petCanvasReady) drawPetPage();
     } else {
       petCanvasHeld = false;
       petCanvasNeedsRestore = false;
@@ -2443,9 +2630,8 @@ void loop() {
     petReply = chatJob.answer;
     startPetMotion(PET_REVIEW, 2200);
     if (page == PET) drawPetConversation();
-    if (qwenKey.length() && !chatJob.answer.startsWith("DeepSeek 请求失败") &&
-        !chatJob.answer.startsWith("请先在网页")) {
-      startQwenTts(chatJob.answer);
+    if (chatJob.ok && speakReplies && qwenKey.length()) {
+      readingReply = startQwenTts(chatJob.answer);
     }
   }
   uint16_t x, y;

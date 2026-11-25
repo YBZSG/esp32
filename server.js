@@ -9,6 +9,7 @@ const API_TOKEN = process.env.MONITOR_TOKEN || 'change-me-before-public-access';
 const VIEW_TOKEN = process.env.MONITOR_VIEW_TOKEN || '';
 const HISTORY_LIMIT = 720;
 const publicDir = path.join(__dirname, 'public');
+const assistantDir = path.join(__dirname, 'cyd-environment', 'web');
 const clients = new Set();
 const history = [];
 let latest = null;
@@ -61,11 +62,13 @@ function viewAuthorized(req) {
 }
 
 function numberOrNull(value) {
+  if (value == null) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
 function buildSample(source) {
+  if (source.temperature == null || source.humidity == null) return null;
   const temperature = Number(source.temperature);
   const humidity = Number(source.humidity);
   if (!Number.isFinite(temperature) || !Number.isFinite(humidity) ||
@@ -97,6 +100,24 @@ function buildSample(source) {
 let fallbackOutSince = 0;
 let alertNotified = false;
 let lastPollLogAt = 0;
+
+// A live relay can be restarted with its own /api/status snapshot. Preserve
+// the original sample times and avoid replaying old measurements as alerts.
+if (process.env.MONITOR_RESTORE_FILE) {
+  const snapshot = JSON.parse(fs.readFileSync(process.env.MONITOR_RESTORE_FILE, 'utf8'));
+  history.push(...snapshot.history.slice(-HISTORY_LIMIT));
+  latest = history.at(-1) || null;
+  if (latest && Date.now() - Date.parse(latest.receivedAt) < 2 * POLL_MS + 10000) {
+    alertNotified = latest.alertActive;
+    if (ALERT_FALLBACK && !latest.alertEnabled) {
+      for (const s of history) {
+        const outside = s.temperature < ALERT_T_MIN || s.temperature > ALERT_T_MAX ||
+          s.humidity < ALERT_H_MIN || s.humidity > ALERT_H_MAX;
+        fallbackOutSince = outside ? fallbackOutSince || Date.parse(s.receivedAt) : 0;
+      }
+    }
+  }
+}
 
 function fallbackAlertText(sample) {
   const reasons = [];
@@ -238,17 +259,58 @@ function broadcast(sample) {
   for (const res of clients) res.write(line);
 }
 
+function localAssistant(req) {
+  const ip = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  return !!ESP32_URL && !req.headers['cf-connecting-ip'] && !req.headers['x-forwarded-for'] &&
+    (ip === '::1' || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || /^(fd|fc|fe80:)/i.test(ip));
+}
+
+async function assistantRequest(req, res, url) {
+  const plain = (code, msg) => { res.writeHead(code, {'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}); res.end(msg); };
+  if (!viewAuthorized(req) || !localAssistant(req)) return plain(403, '智能助手需要从已连接 ESP32 的本机或局域网上位机打开。');
+  if (req.method === 'POST' && req.headers.origin && req.headers.origin !== 'http://' + req.headers.host &&
+      req.headers.origin !== 'https://' + req.headers.host) return plain(403, '请从本机上位机页面发送。');
+  const options = {method:req.method, signal:AbortSignal.timeout(16000), redirect:'error'};
+  let target = url.pathname;
+  try {
+    if (req.method === 'POST') {
+      const chunks = [];
+      let length = 0;
+      for await (const chunk of req) {
+        length += chunk.length;
+        if (length > 10000) return plain(413, '消息超过设备的上下文容量。');
+        chunks.push(chunk);
+      }
+      options.body = Buffer.concat(chunks);
+      options.headers = {'Content-Type': url.pathname === '/deepseek/chat' ? 'application/json' : 'application/x-www-form-urlencoded'};
+      if (url.pathname === '/deepseek/chat') target += '?turn=1';
+    } else if (url.pathname === '/deepseek/result') {
+      target += '?id=' + encodeURIComponent(url.searchParams.get('id') || '');
+    }
+    const response = await fetch(ESP32_URL + target, options);
+    if (response.ok && target === '/assistant/state') {
+      return json(res, 200, {...await response.json(), deviceUrl: ESP32_URL});
+    }
+    plain(response.status, await response.text());
+  } catch {
+    plain(503, '上位机暂时无法连接 ESP32，请检查设备网络。');
+  }
+}
+
 function serveStatic(req, res) {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const requested = pathname === '/' ? '/index.html' : pathname;
-  const full = path.resolve(publicDir, `.${requested}`);
-  if (!full.startsWith(publicDir + path.sep)) return json(res, 403, { error: 'forbidden' });
+  const assistantAsset = pathname === '/assistant' ? 'assistant.html' :
+    ['/pets.png', '/leaf.png'].includes(pathname) ? pathname.slice(1) : null;
+  const full = assistantAsset ? path.join(assistantDir, assistantAsset) : path.resolve(publicDir, `.${requested}`);
+  if (!assistantAsset && !full.startsWith(publicDir + path.sep)) return json(res, 403, { error: 'forbidden' });
   fs.readFile(full, (error, data) => {
     if (error) return json(res, 404, { error: 'not found' });
     const ext = path.extname(full);
     const type = ext === '.html' ? 'text/html; charset=utf-8'
       : ext === '.css' ? 'text/css; charset=utf-8'
       : ext === '.js' ? 'application/javascript; charset=utf-8'
+      : ext === '.png' ? 'image/png'
       : 'application/octet-stream';
     res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache' });
     res.end(data);
@@ -271,7 +333,11 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/status') {
     if (!viewAuthorized(req)) return json(res, 401, { error: 'view authorization required' });
-    return json(res, 200, { latest, history, serverTime: new Date().toISOString() });
+    return json(res, 200, { latest, history, assistant: localAssistant(req), serverTime: new Date().toISOString() });
+  }
+  if ((req.method === 'GET' && ['/assistant/state', '/deepseek/result'].includes(url.pathname)) ||
+      (req.method === 'POST' && ['/assistant/settings', '/deepseek/chat'].includes(url.pathname))) {
+    return assistantRequest(req, res, url);
   }
 
   if (req.method === 'GET' && url.pathname === '/api/events') {

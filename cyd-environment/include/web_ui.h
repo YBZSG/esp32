@@ -10,32 +10,40 @@ body.settings-page{max-width:680px;margin:32px auto;padding:24px;background:var(
 .mobile-nav{display:none}
 @media(max-width:760px){.wrap{padding-bottom:calc(94px + env(safe-area-inset-bottom))}.layout{gap:16px}.top{margin-bottom:20px}.metrics{margin:12px 0 16px}.section-head{margin-bottom:16px}.weather-action{padding-top:12px}.weather-note{margin:6px 0 12px}.weather-action p{margin-bottom:0}.actions{margin-top:12px}.feedback:empty{display:none}.mobile-nav{position:fixed;bottom:0;left:0;right:0;z-index:10;display:grid;grid-template-columns:repeat(4,1fr);padding:6px 12px calc(6px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}.mobile-nav button{display:flex;flex-direction:column;align-items:center;gap:3px;background:transparent;color:var(--muted);padding:8px 4px;font-size:12px;line-height:1.4;min-height:56px}.mobile-nav button[aria-current=page]{background:var(--soft);color:var(--green)}.mobile-nav svg{width:21px;height:21px}.footer[data-view=device]{padding:20px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-top:16px;display:block}.footer nav{display:flex;flex-direction:column;gap:0;margin-top:12px}.footer nav a{display:flex;align-items:center;min-height:48px;text-decoration:none;border-top:1px solid var(--line)}body:not([data-tab=environment]) [data-view=environment],body:not([data-tab=trend]) [data-view=trend],body:not([data-tab=miku]) [data-view=miku],body:not([data-tab=device]) [data-view=device]{display:none}.chat-panel textarea{min-height:130px}input,textarea,select{font-size:16px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+/* Monitoring workspace */
+:root{--bg:#f4f6ef;--panel:#fffefa;--ink:#23362f;--muted:#55675d;--line:#d8ded2;--green:#245c49;--soft:#eaf2e3}
+.wrap{max-width:1200px;padding-top:0}.top{height:76px;margin:0;border-bottom:1px solid var(--line)}.brand-row{display:flex;align-items:center;gap:12px}.brand-row h1{margin:0;font-size:21px}.brand-mark{width:40px;height:40px;display:block;object-fit:contain;border-radius:7px;flex:none}
+.panel{border-radius:17px}.layout{align-items:start}.panel[data-view=trend]{grid-row:auto}.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.facts span{display:grid;font-size:12px}.facts b{font-size:14px}.facts span:last-child{grid-column:1/-1}.advice{border-left:3px solid #799f68;border-radius:0 10px 10px 0}.reading{font-size:clamp(38px,5vw,65px)}.section-head h2{font-size:20px}.ask-link,.device-links a{display:flex;align-items:center;justify-content:space-between;min-height:44px;text-decoration:none;font-weight:650}.ask-link{margin-top:16px;border-top:1px solid var(--line);padding-top:10px}.device-links a{border-top:1px solid var(--line);font-size:14px}.device-links{margin-top:8px}.feedback:empty{display:none}
+body:not([data-tab=environment]) [data-view=environment],body:not([data-tab=trend]) [data-view=trend],body:not([data-tab=device]) [data-view=device]{display:none}
+.mobile-nav a{display:flex;text-decoration:none;align-items:center;justify-content:center;min-height:44px;color:var(--muted);font-weight:650}
+@media(min-width:761px){.mobile-nav{display:flex;gap:8px;margin:18px 0 24px}.mobile-nav button,.mobile-nav a{display:flex;gap:8px;align-items:center;border-radius:9px;min-height:44px;padding:8px 18px;background:transparent;color:var(--muted);font-size:15px}.mobile-nav [aria-current=page]{background:#294f3f;color:#fff}.mobile-nav svg{width:18px;height:18px}.mobile-nav a:hover,.mobile-nav button:hover:not([aria-current]){background:#e5ebdf}.layout{grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr)}body[data-tab=trend] .layout,body[data-tab=device] .layout{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:26px 28px}}
+@media(max-width:760px){.wrap{padding-top:0}.top{height:66px;align-items:center;margin-bottom:14px}.mobile-nav a{flex-direction:column;gap:3px;font-size:12px;line-height:1.4}.brand-row h1{font-size:18px}.brand-mark{width:32px;height:32px}.facts{grid-template-columns:1fr 1fr}.metrics{gap:12px}.reading{font-size:42px}.panel{padding:18px}.section-head h2{font-size:17px}.mobile-nav{padding-top:3px}.mobile-nav button{min-height:50px}.layout{gap:12px}}
 )CSS";
 
 const char WEB_PAGE[] PROGMEM = R"HTML(
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7fb"><title>环境健康助手</title><link rel="stylesheet" href="/ui.css"></head>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f7fb"><link rel="icon" type="image/png" href="/leaf.png"><title>环境健康助手</title><link rel="stylesheet" href="/ui.css"></head>
 <body data-tab="environment"><main class="wrap">
-<header class="top"><div><h1>环境健康助手</h1><p class="muted">室内外环境，一眼掌握。</p></div><div class="connection"><div id="connection" role="status"><i class="dot" aria-hidden="true"></i><span id="connectionText">正在连接</span></div><small id="updated">等待设备数据</small></div></header>
+<header class="top"><div><div class="brand-row"><img class="brand-mark" src="/leaf.png" alt=""><h1>环境观察室</h1></div></div><div class="connection"><div id="connection" role="status"><i class="dot" aria-hidden="true"></i><span id="connectionText">正在连接</span></div><small id="updated">等待设备数据</small></div></header>
+<nav class="mobile-nav" aria-label="主要页面">
+<button type="button" data-tab-target="environment" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8"/></svg>环境</button>
+<button type="button" data-tab-target="trend"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v17h17M7 14l4-5 4 3 5-7"/></svg>趋势</button>
+<a href="/assistant"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a3 3 0 0 1-3 3H9l-5 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v9ZM8 8h8M8 12h5"/></svg>智能助手</a>
+<button type="button" data-tab-target="device"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 6h6M11 18h2"/></svg>设备</button>
+</nav>
 <div id="offline" class="notice" role="status" hidden>设备暂时离线。以下为最后一次读数，连接恢复后自动更新。</div>
 <div id="alert" class="alert" role="alert" hidden><p id="alertText"></p><button id="dismiss" type="button">知道了</button></div>
 <div class="layout">
-<section class="panel" data-view="environment" aria-labelledby="indoorTitle"><div class="section-head"><h2 id="indoorTitle">室内环境</h2><span class="muted">实时监测</span></div>
+<section class="panel indoor" data-view="environment" aria-labelledby="indoorTitle"><div class="section-head"><h2 id="indoorTitle">室内环境</h2><span class="muted">实时监测</span></div>
 <div class="metrics"><div class="metric"><div class="metric-label">温度 <span class="badge" id="tl">未就绪</span></div><div class="reading"><span id="t">--</span><span class="unit">℃</span></div></div><div class="metric"><div class="metric-label">湿度 <span class="badge" id="hl">未就绪</span></div><div class="reading"><span id="h">--</span><span class="unit">%</span></div></div></div>
-<div class="advice"><strong id="state">正在读取环境</strong><p id="advice">连接设备后，这里会显示当前环境建议。</p></div><div class="facts"><span>露点 <b id="dew">--</b></span><span>结露余量 <b id="cm">--</b></span><span>绝对湿度 <b id="ah">--</b></span><span>焓值 <b id="eh">--</b></span><span>霉变风险 <b id="mold">--</b></span><span>10 分钟趋势 <b id="forecast">--</b></span><span>最近事件 <b id="event">--</b></span></div></section>
+<div class="advice"><strong id="state">正在读取环境</strong><p id="advice">连接设备后，这里会显示当前环境建议。</p></div><div class="facts"><span>露点 <b id="dew">--</b></span><span>结露余量 <b id="cm">--</b></span><span>绝对湿度 <b id="ah">--</b></span><span>焓值 <b id="eh">--</b></span><span>霉变风险 <b id="mold">--</b></span><span>10 分钟趋势 <b id="forecast">--</b></span><span>最近事件 <b id="event">--</b></span></div><a href="/assistant" class="ask-link">向助手咨询当前环境 <span>↗</span></a></section>
 <section class="panel" data-view="environment" aria-labelledby="outdoorTitle"><div class="section-head"><h2 id="outdoorTitle">室外与节能建议</h2><span id="op" class="muted">未获取</span></div><div class="weather-reading"><span id="ot">-- ℃</span><span id="oh">-- %</span></div><p class="weather-note" id="om">等待室外天气</p><div class="weather-action"><b id="oa">等待数据</b><p id="or" class="muted">结合室内外温湿度，给出通风和空调建议。</p></div><div class="actions"><a href="/weather-config">设置城市 / 坐标</a><button class="secondary" id="refreshWeather" type="button">刷新天气</button></div><p class="feedback" id="weatherFeedback" role="status"></p></section>
 <section class="panel" data-view="trend" aria-labelledby="trendTitle"><div class="section-head"><h2 id="trendTitle">最近趋势</h2><span class="muted">最多 6 分钟</span></div><div id="chartEmpty" class="empty">正在积累读数，稍后显示趋势。</div><div id="charts" hidden><div class="chart-label"><b>温度 · ℃</b><span id="tRange"></span></div><canvas id="tChart" role="img" aria-label="室内温度变化趋势"></canvas><div class="chart-label humidity"><b>湿度 · %</b><span id="hRange"></span></div><canvas id="hChart" role="img" aria-label="室内湿度变化趋势"></canvas><div class="chart-axis"><span id="historyStart"></span><span>现在</span></div></div>
-<div class="section-head" style="margin-top:26px"><h2>过去 24 小时</h2><span class="muted">TF 卡记录 · 5 分钟聚合</span></div><div id="dayEmpty" class="empty">正在读取历史记录。</div><div id="dayCharts" hidden><div class="chart-label"><b>温度 · ℃</b><span id="t24Range"></span></div><canvas id="tChart24" role="img" aria-label="过去 24 小时温度趋势"></canvas><div class="chart-label humidity"><b>湿度 · %</b><span id="h24Range"></span></div><canvas id="hChart24" role="img" aria-label="过去 24 小时湿度趋势"></canvas><div class="chart-axis"><span>24 小时前</span><span>现在</span></div><p class="muted" id="dayStats" style="margin:10px 0 0"></p></div></section>
+</section><section class="panel" data-view="trend"><div class="section-head"><h2>过去 24 小时</h2><span class="muted">TF 卡记录 · 5 分钟聚合</span></div><div id="dayEmpty" class="empty">正在读取历史记录。</div><div id="dayCharts" hidden><div class="chart-label"><b>温度 · ℃</b><span id="t24Range"></span></div><canvas id="tChart24" role="img" aria-label="过去 24 小时温度趋势"></canvas><div class="chart-label humidity"><b>湿度 · %</b><span id="h24Range"></span></div><canvas id="hChart24" role="img" aria-label="过去 24 小时湿度趋势"></canvas><div class="chart-axis"><span>24 小时前</span><span>现在</span></div><p class="muted" id="dayStats" style="margin:10px 0 0"></p></div></section>
 <section class="panel" data-view="device" aria-labelledby="audioTitle"><div class="section-head"><h2 id="audioTitle">喇叭与语音</h2><a class="muted" href="/qwen-config">语音设置</a></div><div class="audio-status"><span class="audio-indicator" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></span><strong id="audioState">正在读取状态</strong></div><p class="muted" id="ttsState">语音状态将在连接后显示。</p><div class="stats"><div>缓冲中断<b id="underruns">--</b></div><div>写入未完成<b id="shortWrites">--</b></div></div><div class="actions"><button class="secondary" id="testTone" type="button" disabled>播放测试音</button><a href="/speaker-test">查看测试说明</a></div><p class="feedback" id="audioFeedback" role="status"></p></section>
-<section class="panel chat-panel" data-view="miku" aria-labelledby="chatTitle"><div><h2 id="chatTitle">和 Miku 聊聊</h2><p class="muted">询问当前环境，或聊聊今天的日常。<br>由 DeepSeek 回复，配置语音后可朗读。</p><details><summary>DeepSeek 密钥设置</summary><form id="keyForm" class="config-form"><label for="key">API Key</label><input id="key" type="password" autocomplete="off" placeholder="留空保留原密钥" maxlength="180"><button id="saveKey" type="submit" class="secondary">保存密钥</button><p class="muted">密钥只保存在这块 ESP32；请仅在可信局域网中填写。</p><p id="keyFeedback" class="feedback" role="status"></p></form></details></div><div><form id="chatForm"><label for="q">发送消息</label><textarea id="q" maxlength="600" placeholder="现在适合开窗通风吗？" required></textarea><div class="chat-controls"><small>最多 600 字节（约 200 个汉字）</small><button id="sendChat" type="submit">发送给 Miku</button></div></form><p id="chatFeedback" class="feedback" role="status"></p><div id="reply" class="reply" aria-live="polite" hidden></div></div></section>
-</div><footer class="footer" data-view="device"><span>ESP32 · 设备设置</span><nav aria-label="设备设置"><a href="/alert-config">区间提醒</a><a href="/storage">TF 卡状态</a><a href="/miku-upload">更新 Miku 动画</a></nav></footer>
-</main><nav class="mobile-nav" aria-label="手机页面">
-<button type="button" data-tab-target="environment" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8"/></svg>环境</button>
-<button type="button" data-tab-target="trend"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v17h17M7 14l4-5 4 3 5-7"/></svg>趋势</button>
-<button type="button" data-tab-target="miku"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15a3 3 0 0 1-3 3H9l-5 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v9ZM8 8h8M8 12h5"/></svg>Miku</button>
-<button type="button" data-tab-target="device"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 6h6M11 18h2"/></svg>设备</button>
-</nav><script>
+<section class="panel" data-view="device"><h2>设备配置</h2><details><summary>DeepSeek 密钥设置</summary><form id="keyForm" class="config-form"><label for="key">API Key</label><input id="key" type="password" autocomplete="off" placeholder="留空保留原密钥" maxlength="180"><button id="saveKey" type="submit" class="secondary">保存密钥</button><p class="muted">密钥只保存在这块 ESP32；请仅在可信局域网中填写。</p><p id="keyFeedback" class="feedback" role="status"></p></form></details><nav class="device-links"><a href="/qwen-config">语音服务 <span>›</span></a><a href="/alert-config">区间提醒 <span>›</span></a><a href="/storage">TF 卡状态 <span>›</span></a><a href="/miku-upload">安装宠物外观 <span>›</span></a></nav></section>
+</div></main><script>
 const $=id=>document.getElementById(id);
-let snapshot=null,alertShown='',chatPending=false,tonePending=false,deviceBusy=false,pollTimer,daySnapshot=null,dayLoadedAt=0,dayLoading=false;
+let snapshot=null,alertShown='',tonePending=false,deviceBusy=false,pollTimer,daySnapshot=null,dayLoadedAt=0,dayLoading=false;
 const number=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'--';
 function feedback(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error)}
 async function request(url,options={}){
@@ -80,12 +88,12 @@ function renderDay(d){
   $('t24Range').textContent=`${number(d.minT)}–${number(d.maxT)} ℃`;
   $('h24Range').textContent=`${number(d.minH,0)}–${number(d.maxH,0)} %`;
   $('dayStats').textContent=`共 ${d.samples} 个样本 · 温度 >28℃ ${d.hotMinutes} 分钟 · 湿度 >70% ${d.humidMinutes} 分钟`;
-  daySnapshot=d;dayLoadedAt=Date.now();
+  daySnapshot=d;
 }
 async function loadDay(){
   if(dayLoading)return;
   dayLoading=true;
-  try{const d=await(await request('/api/history24h')).json();renderDay(d)}
+  try{const d=await(await request('/api/history24h')).json();renderDay(d);dayLoadedAt=Date.now()}
   catch(e){$('dayEmpty').hidden=false;$('dayCharts').hidden=true;$('dayEmpty').textContent='读取历史记录失败：'+message(e)}
   finally{dayLoading=false}
 }
@@ -102,45 +110,38 @@ function render(d){
   const a=d.audio;deviceBusy=d.chatBusy||a.busy||a.running||a.buffered>0;
   $('audioState').textContent=!a.ready?'音频输出未就绪':a.running?'喇叭播放中':a.busy?'正在准备语音':'喇叭已静音';
   $('ttsState').textContent=a.status;$('underruns').textContent=a.underruns;$('shortWrites').textContent=a.shortWrites;
-  $('testTone').disabled=tonePending||deviceBusy||!a.ready;$('sendChat').disabled=chatPending||deviceBusy;
+  $('testTone').disabled=tonePending||deviceBusy||!a.ready;
   charts(d);
 }
 async function load(){
   clearTimeout(pollTimer);
   try{const d=await(await request('/api')).json();render(d);snapshot=d;$('connection').className='online';$('connectionText').textContent='设备在线';$('updated').textContent='更新于 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});$('offline').hidden=true}
-  catch(e){$('connection').className='offline';$('connectionText').textContent='连接中断';$('offline').hidden=false;if(!snapshot)$('offline').textContent='暂时无法连接设备，正在自动重试。';$('testTone').disabled=true;$('sendChat').disabled=true}
+  catch(e){$('connection').className='offline';$('connectionText').textContent='连接中断';$('offline').hidden=false;if(!snapshot)$('offline').textContent='暂时无法连接设备，正在自动重试。';$('testTone').disabled=true}
   finally{pollTimer=setTimeout(load,document.hidden?10000:2500)}
 }
 $('dismiss').onclick=()=>{$('alert').hidden=true};
 $('refreshWeather').onclick=async()=>{const b=$('refreshWeather');b.disabled=true;b.textContent='正在刷新…';try{const r=await request('/weather/refresh',{method:'POST'});feedback('weatherFeedback',await r.text())}catch(e){feedback('weatherFeedback',message(e),true)}finally{b.disabled=false;b.textContent='刷新天气'}};
 $('keyForm').onsubmit=async e=>{e.preventDefault();const key=$('key').value.trim();if(!key){feedback('keyFeedback','请先填写 API Key。',true);return}const b=$('saveKey');b.disabled=true;try{const r=await request('/deepseek/config',{method:'POST',headers:{'Content-Type':'text/plain'},body:key});$('key').value='';feedback('keyFeedback',await r.text())}catch(e){feedback('keyFeedback',message(e),true)}finally{b.disabled=false}};
-$('chatForm').onsubmit=async e=>{
-  e.preventDefault();if(chatPending)return;const q=$('q').value.trim();if(!q)return;
-  if(new TextEncoder().encode(q).length>600){feedback('chatFeedback','消息过长，请缩短至 600 字节以内（约 200 个汉字）。',true);return}
-  chatPending=true;$('sendChat').disabled=true;$('sendChat').textContent='正在回复…';feedback('chatFeedback','Miku 正在思考…');
-  try{let r=await request('/deepseek/chat',{method:'POST',headers:{'Content-Type':'text/plain'},body:q});const deadline=Date.now()+180000;
-    while(r.status===202){if(Date.now()>deadline)throw new Error('回复等待超时，请稍后重新打开页面查看。');await new Promise(resolve=>setTimeout(resolve,1200));r=await request('/deepseek/result')}
-    $('reply').textContent=await r.text();$('reply').hidden=false;feedback('chatFeedback','已收到回复。');
-  }catch(e){feedback('chatFeedback',message(e),true)}finally{chatPending=false;$('sendChat').disabled=deviceBusy;$('sendChat').textContent='发送给 Miku'}
-};
 $('testTone').onclick=async()=>{if(tonePending)return;tonePending=true;$('testTone').disabled=true;try{const r=await request('/speaker-test',{method:'POST'});feedback('audioFeedback',await r.text())}catch(e){feedback('audioFeedback',message(e),true)}finally{tonePending=false;$('testTone').disabled=deviceBusy}};
 function showTab(){
-  const tab=['environment','trend','miku','device'].includes(location.hash.slice(1))?location.hash.slice(1):'environment';
+  if(location.hash==='#miku'){location.replace('/assistant');return}
+  const tab=['environment','trend','device'].includes(location.hash.slice(1))?location.hash.slice(1):'environment';
   document.body.dataset.tab=tab;
   document.querySelectorAll('[data-tab-target]').forEach(b=>{if(b.dataset.tabTarget===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(snapshot)charts(snapshot);
-  if((tab==='trend'||matchMedia('(min-width:761px)').matches)&&Date.now()-dayLoadedAt>300000)loadDay();
+  if(daySnapshot && tab==='trend')renderDay(daySnapshot);
+  if(tab==='trend'&&Date.now()-dayLoadedAt>300000)loadDay();
 }
 document.querySelectorAll('[data-tab-target]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.tabTarget;window.scrollTo(0,0)});
 window.addEventListener('hashchange',showTab);showTab();
-window.addEventListener('resize',()=>{if(matchMedia('(min-width:761px)').matches&&Date.now()-dayLoadedAt>300000)loadDay()});
-new ResizeObserver(()=>{if(snapshot)charts(snapshot);if(daySnapshot&&(document.body.dataset.tab==='trend'||matchMedia('(min-width:761px)').matches))renderDay(daySnapshot)}).observe($('tChart').parentElement);
+
+new ResizeObserver(()=>{if(snapshot)charts(snapshot);if(daySnapshot&&document.body.dataset.tab==='trend')renderDay(daySnapshot)}).observe($('tChart').parentElement);
 load();
 </script></body></html>
 )HTML";
 
 const char SPEAKER_PAGE[] PROGMEM = R"HTML(
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>喇叭测试 · 环境健康助手</title><link rel="stylesheet" href="/ui.css"></head><body class="settings-page"><a class="back" href="/">返回环境健康助手</a><h1>喇叭测试</h1><p>播放 1.5 秒、880 Hz 的本地测试音。测试不经过网络语音服务，可用于比较本地声音与语音播放的区别。</p><p class="muted">播放完成后，DAC 自动关闭并保持静音。若测试音清晰而语音断续，可在首页查看缓冲中断计数。</p><button id="play" type="button">播放测试音</button><p id="result" role="status"></p><div class="tools"><a href="/qwen-config">语音设置</a><a href="/">查看播放状态</a></div><script>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="/leaf.png"><title>喇叭测试 · 环境健康助手</title><link rel="stylesheet" href="/ui.css"></head><body class="settings-page"><a class="back" href="/">返回环境健康助手</a><h1>喇叭测试</h1><p>播放 1.5 秒、880 Hz 的本地测试音。测试不经过网络语音服务，可用于比较本地声音与语音播放的区别。</p><p class="muted">播放完成后，DAC 自动关闭并保持静音。若测试音清晰而语音断续，可在首页查看缓冲中断计数。</p><button id="play" type="button">播放测试音</button><p id="result" role="status"></p><div class="tools"><a href="/qwen-config">语音设置</a><a href="/">查看播放状态</a></div><script>
 document.getElementById('play').onclick=async function(){this.disabled=true;const result=document.getElementById('result');result.textContent='正在发送测试…';try{const r=await fetch('/speaker-test',{method:'POST',signal:AbortSignal.timeout(15000)});result.textContent=await r.text()}catch(e){result.textContent='设备连接失败，请稍后重试。'}finally{this.disabled=false}};
 </script></body></html>
 )HTML";

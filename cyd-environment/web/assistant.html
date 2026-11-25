@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f6f0">
+<link rel="icon" type="image/png" href="/leaf.png"><title>智能助手 · 环境观察室</title>
+<style>
+:root{color-scheme:light;--ink:#23362f;--muted:#55675d;--green:#245c49;--line:#d8ded2;--paper:#fffefa;--wash:#f4f6ef}
+*{box-sizing:border-box}body{margin:0;background:var(--wash);color:var(--ink);font:15px/1.55 system-ui,"Microsoft YaHei",sans-serif}button,input,textarea{font:inherit;color:inherit}h1,h2,p{margin:0}button,a,summary{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default;opacity:.65}a{color:var(--green);text-underline-offset:4px}button:focus-visible,a:focus-visible,summary:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #26705a;outline-offset:3px}[hidden]{display:none!important}
+.shell{max-width:1200px;margin:auto;padding:0 34px}.mast{height:76px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{display:inline-flex;gap:12px;align-items:center;font-size:19px;font-weight:730;text-decoration:none;color:var(--ink)}.mark{width:40px;height:40px;display:block;object-fit:contain;border-radius:7px;flex:none}.back{font-size:14px;font-weight:600;display:inline-flex;align-items:center;min-height:44px;text-decoration:none}.desktop{display:grid;grid-template-columns:264px minmax(0,1fr);gap:24px;padding:28px 0;align-items:start}
+.settings{border:1px solid var(--line);background:var(--paper);border-radius:18px;overflow:hidden}.settings summary{font-weight:680;font-size:16px;padding:16px 20px;cursor:pointer}.inside{padding:0 20px 18px}.label,.meta{font-size:13px;color:var(--muted)}.label{font-weight:650}.readings{display:flex;align-items:baseline;gap:12px;padding:4px 0}.readings b{font-size:25px;letter-spacing:-.05em;font-variant-numeric:tabular-nums}.readings small{font-size:12px;font-weight:550;letter-spacing:0;margin-left:2px}.setrow{border-top:1px solid var(--line);margin-top:15px;padding-top:15px}.voice{display:flex;align-items:center;justify-content:space-between;font-weight:650;min-height:44px;cursor:pointer}.voice input{appearance:none;cursor:pointer;border:1px solid #89998b;background:#cbd1c7;width:42px;height:25px;border-radius:20px;position:relative;flex:none}.voice input:before{content:"";position:absolute;left:3px;top:3px;background:white;width:17px;height:17px;border-radius:50%;box-shadow:0 1px 3px #0003}.voice input:checked{background:var(--green);border-color:var(--green)}.voice input:checked:before{left:20px}.skins{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0}.skin{display:grid;justify-items:center;align-content:center;gap:2px;min-height:88px;background:#f5f5ee;border:1px solid transparent;border-radius:10px;font-size:12px}.skin[aria-pressed=true]{border-color:#41745c;box-shadow:inset 0 0 0 1px #41745c;background:#edf4e5;font-weight:700}.skin:disabled{opacity:.45}.portrait{display:block;width:56px;height:61px;background:url('/pets.png') var(--pos,0%) bottom / 400% 100% no-repeat;image-rendering:pixelated}.tool-link{display:inline-block;min-height:36px;padding-top:8px;font-size:13px}
+.chat{display:flex;flex-direction:column;height:clamp(570px,calc(100dvh - 132px),900px);background:var(--paper);border:1px solid var(--line);border-radius:20px;overflow:hidden;min-width:0}.chat-head{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}.chat-head h1{font-size:22px;line-height:1.3;letter-spacing:-.03em}.chat-head .meta{margin-top:4px}.quiet{background:transparent;color:var(--green);border:1px solid var(--line);border-radius:9px;min-height:42px;padding:7px 12px;white-space:nowrap}.feed{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;padding:20px 24px;scrollbar-width:thin;display:flex;flex-direction:column}.intro{margin:auto;width:min(100%,470px);padding:14px 0 18px}.scene{width:90px;height:84px;display:grid;align-items:end;justify-items:center;background:#e6ecd5;border-radius:32px 32px 18px 18px;margin-bottom:16px}.scene .portrait{width:69px;height:75px}.intro h2{font-size:clamp(23px,3vw,32px);letter-spacing:-.05em;line-height:1.3}.intro p{margin:8px 0 14px;color:var(--muted)}.prompts{display:flex;flex-wrap:wrap;gap:7px}.prompts button{min-height:42px;border:1px solid var(--line);border-radius:8px;background:#fffefa;font-size:13px;padding:7px 10px}.bubble{display:grid;justify-items:start;margin:4px 0 14px}.bubble b{font-size:12px;color:var(--muted);margin:0 4px 4px}.bubble p{max-width:min(94%,64ch);padding:12px 15px;border-radius:3px 13px 13px;background:#f0f3ea;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.bubble.user{justify-items:end}.user p{background:#e0eddd;border-radius:13px 3px 13px 13px}.bubble.wait p{color:var(--muted)}
+.composer{border-top:1px solid var(--line);padding:12px 20px;background:var(--paper)}.compose{border:1px solid #aebcaf;background:white;border-radius:12px;display:flex;align-items:flex-end;padding:7px;gap:8px}.compose:focus-within{border-color:var(--green)}textarea{resize:none;min-width:0;flex:1;border:0;background:transparent;padding:6px 8px;height:54px;max-height:120px;line-height:1.45;font-size:16px}textarea:focus-visible{outline:none}.send{border:0;background:var(--green);color:white;min-height:43px;border-radius:8px;font-weight:650;padding:8px 16px}.notes{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;color:var(--muted);margin:6px 2px 0}.error{color:#9b3831}.state{font-size:12px;font-weight:650;color:var(--green)}.alert{padding:8px 12px;background:#fff1db;color:#794820;font-size:14px}.alert a{font-weight:650}.settings p.error{font-size:13px}
+@media(max-width:760px){.shell{padding:0 12px}.mast{height:54px}.brand{font-size:16px;gap:8px}.mark{width:30px;height:30px}.desktop{display:flex;flex-direction:column;gap:8px;padding:8px 0 max(8px,env(safe-area-inset-bottom));height:calc(100dvh - 54px)}.settings,.chat{width:100%}.settings{flex:none;border-radius:12px}.settings summary{padding:10px 14px;min-height:44px;font-size:14px}.settings[open]{max-height:44dvh;overflow:auto}.inside{padding:0 14px 12px}.skins{grid-template-columns:repeat(4,1fr)}.skin{min-height:72px}.skin .portrait{width:42px;height:46px}.chat{flex:1;min-height:200px;height:auto;border-radius:14px}.chat-head{padding:10px 13px}.chat-head h1{font-size:19px}.chat-head .meta{font-size:12px}.feed{padding:12px}.intro{padding:4px 3px}.scene{width:62px;height:61px;margin-bottom:10px}.scene .portrait{width:50px;height:55px}.intro p{font-size:14px;margin:5px 0 10px}.intro h2{font-size:23px}.composer{padding:8px 10px}.compose textarea{height:42px}.notes{font-size:11px}.back{font-size:13px}.bubble p{max-width:97%;padding:9px 12px}.quiet{min-height:44px}}
+@media(max-height:580px) and (max-width:760px){.scene,.intro p{display:none}.desktop{min-height:270px}.settings[open]{max-height:36dvh}}
+</style></head>
+<body><div class="shell"><header class="mast"><a class="brand" href="/"><img class="mark" src="/leaf.png" alt="">环境观察室</a><a class="back" href="/">← 环境总览</a></header>
+<main class="desktop"><details class="settings" id="settings"><summary>现场数据与宠物设置</summary><div class="inside">
+<div class="label">室内实测</div><div class="readings"><b><span id="temp">—</span><small>℃</small></b><b><span id="hum">—</span><small>% RH</small></b></div><div class="meta" id="level">正在连接设备</div>
+<div class="setrow"><label class="voice">朗读助手回复<input id="speak" type="checkbox" role="switch" disabled></label><p class="meta" id="voiceHint"></p></div>
+<div class="setrow"><div class="label">屏幕宠物外观</div><div class="skins" id="skins" role="group" aria-label="宠物外观"></div><p id="card" class="meta"></p><a id="install" class="tool-link" href="/miku-upload">安装 TF 卡外观</a></div><p id="settingMsg" role="status"></p></div></details>
+<section class="chat" aria-labelledby="title"><header class="chat-head"><div><h1 id="title">智能助手</h1><p class="meta" id="context">当前对话 · 最多参考最近 4 轮</p></div><button id="reset" class="quiet" type="button" disabled>新对话</button></header>
+<div id="alert" class="alert" role="status" hidden></div><div class="feed" id="feed"><div id="intro" class="intro"><div class="scene"><span id="heroPet" class="portrait"></span></div><h2>今天想了解什么？</h2><p>结合房间的温湿度，和 Miku 一起判断下一步怎么做。</p><div class="prompts"><button type="button">现在适合开窗吗？</button><button type="button">怎样减少房间结露？</button></div></div><div id="log" role="log" aria-live="polite" aria-label="对话记录"></div></div>
+<form id="form" class="composer"><div class="compose"><textarea id="q" aria-label="给助手发消息" rows="2" maxlength="600" placeholder="问问 Miku…" required></textarea><button id="send" class="send" disabled>发送 ↑</button></div><div class="notes"><span id="feedback" role="status">正在连接设备…</span><span id="size">0 / 600 B</span></div></form></section></main></div>
+<script>
+const $ = id => document.getElementById(id);
+const names = ['Miku','月兔','赤狐','围巾企鹅'];
+const encoder = new TextEncoder();
+const size = s => encoder.encode(s).length;
+const storageKey = 'env-assistant.v1';
+let session = JSON.parse(sessionStorage.getItem(storageKey) || '{"turns":[],"draft":"","pending":null}');
+const save = () => sessionStorage.setItem(storageKey,JSON.stringify(session));
+let state=null, sending=false, saving=false, polling=false, monitoring=false, lastError='';
+const desktop = matchMedia('(min-width:761px)');
+$('settings').open = desktop.matches;
+desktop.addEventListener('change', () => $('settings').open = desktop.matches);
+$('q').value = session.draft;
+function windowTurns(){
+  const history=[]; let bytes=0;
+  for(const pair of session.turns.slice(-4).reverse()){
+    bytes += size(pair.q)+size(pair.a);
+    if(bytes>3600) break;
+    history.unshift({role:'user',content:pair.q},{role:'assistant',content:pair.a});
+  }
+  return history;
+}
+function message(role,content,waiting=false){
+  const el=document.createElement('div'), label=document.createElement('b'), p=document.createElement('p');
+  el.className='bubble '+role+(waiting?' wait':'');
+  label.textContent=role==='user'?'你':'Miku';p.textContent=content;el.append(label,p);$('log').append(el);
+}
+function transcript(){
+  $('log').replaceChildren();
+  for(const turn of session.turns){message('user',turn.q);message('assistant',turn.a)}
+  if(session.pending){message('user',session.pending.q);message('assistant','正在分析…',true)}
+  $('intro').hidden=!!(session.turns.length||session.pending);
+  $('context').textContent='上下文 '+(windowTurns().length/2)+' / 4 轮 · 3,600 字节窗口';
+  $('feed').scrollTop=$('feed').scrollHeight;
+}
+function controls(){
+  const len=size($('q').value.trim()), busy=sending||!!session.pending;
+  $('size').textContent=len+' / 600 B';$('size').className=len>600?'error':'';
+  $('send').disabled=busy||!state||!state.keyReady||state.busy||!len||len>600;
+  $('q').readOnly=busy;$('reset').disabled=busy||!session.turns.length;
+  $('speak').disabled=saving||!state;
+  $('feedback').className=lastError?'error':'';
+  $('feedback').textContent=lastError||(busy?'正在等待回复…':len>600?'请缩短消息后发送。':state?.busy?'设备正在工作，请稍候。':state?(desktop.matches?'Ctrl / ⌘ + Enter 发送':'点发送即可提问'):'等待设备连接');
+}
+function renderState(){
+  $('temp').textContent=state?.temperature && state.temperature!=='null'?state.temperature:'—';
+  $('hum').textContent=state?.humidity && state.humidity!=='null'?state.humidity:'—';
+  $('level').textContent=state?.level||'设备未连接';
+  if(!saving)$('speak').checked=!!state?.speak;
+  $('voiceHint').textContent=!state?'等待设备状态':!state.speak?'仅显示文字':state.voiceReady?'由 ESP32 喇叭播放':'需在设备页配置百炼语音';
+  $('card').textContent=state?(state.card?'TF 卡已挂载 · '+names.filter((_,i)=>state.available&(1<<i)).length+' 款已安装':'TF 卡未挂载'):'';
+  $('heroPet').style.setProperty('--pos',((state?.skin||0)*100/3)+'%');
+  for(const [i,b] of [...$('skins').children].entries()){
+    b.disabled=saving||!state||!(state.available&(1<<i));b.setAttribute('aria-pressed',String(state?.skin===i));
+  }
+  $('install').href=(state?.deviceUrl||'')+'/miku-upload';
+  $('install').hidden=!state;
+  controls();
+}
+function notice(msg,configure=false){
+  $('alert').replaceChildren(document.createTextNode(msg));$('alert').hidden=!msg;
+  if(configure){const a=document.createElement('a');a.href=(state?.deviceUrl||'')+'/#device';a.textContent='打开设备设置';$('alert').append(' ',a)}
+}
+async function request(url,options={}){
+  const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),18000);
+  try{
+    const r=await fetch(url,{...options,cache:'no-store',signal:controller.signal});
+    const text=await r.text();
+    if(!r.ok)throw Object.assign(new Error(text||'设备请求失败'),{status:r.status});
+    return {status:r.status,text};
+  }finally{clearTimeout(timer)}
+}
+async function refresh(){
+  if(polling||saving)return;
+  polling=true;
+  try{const next=JSON.parse((await request('/assistant/state')).text);if(!saving){state=next;notice(state.keyReady?'':'尚未配置 DeepSeek 密钥。',!state.keyReady)}}
+  catch(e){if(!saving){state=null;notice(e.status?e.message:'连接中断，正在重新连接设备。')}}
+  finally{polling=false;renderState()}
+}
+async function setting(key,value){
+  if(saving)return;saving=true;renderState();
+  try{await request('/assistant/settings',{method:'POST',body:new URLSearchParams({[key]:value})});state[key]=key==='speak'?value==='1':Number(value);$('settingMsg').textContent='已保存';$('settingMsg').className='meta'}
+  catch(e){$('settingMsg').textContent=e.message;$('settingMsg').className='error'}
+  finally{saving=false;renderState();await refresh()}
+}
+$('speak').onchange=e=>setting('speak',e.target.checked?'1':'0');
+names.forEach((name,i)=>{const b=document.createElement('button'),icon=document.createElement('span');
+  b.type='button';b.className='skin';b.disabled=true;icon.className='portrait';icon.style.setProperty('--pos',i*100/3+'%');b.append(icon,name);b.onclick=()=>setting('skin',String(i));$('skins').append(b)});
+function edit(){session.draft=$('q').value;save();lastError='';controls()}
+$('q').oninput=edit;
+document.querySelectorAll('.prompts button').forEach(b=>b.onclick=()=>{$('q').value=b.textContent;edit();$('q').focus()});
+$('q').onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&(e.ctrlKey||e.metaKey)&&!$('send').disabled){e.preventDefault();$('form').requestSubmit()}};
+$('reset').onclick=()=>{session={turns:[],draft:'',pending:null};$('q').value='';lastError='';save();transcript();controls();$('q').focus()};
+async function awaitResult(){
+  if(monitoring||!session.pending)return;
+  monitoring=true;
+  try{
+    while(session.pending){
+      if(Date.now()-session.pending.at>180000)throw new Error('回复等待超时，原问题已放回输入框。');
+      await new Promise(resolve=>setTimeout(resolve,1000));
+      let r;
+      try{r=await request('/deepseek/result?id='+encodeURIComponent(session.pending.id))}
+      catch(e){if(!e.status||e.status===503)continue;throw e}
+      if(r.status===202)continue;
+      session.turns.push({q:session.pending.q,a:r.text});session.turns=session.turns.slice(-30);
+      session.pending=null;lastError='';save();transcript();
+    }
+  }catch(e){session.draft=session.pending.q;$('q').value=session.draft;session.pending=null;lastError=e.message;save();transcript()}
+  finally{monitoring=false;await refresh();controls()}
+}
+$('form').onsubmit=async e=>{
+  e.preventDefault();if($('send').disabled)return;
+  const q=$('q').value.trim();sending=true;lastError='';controls();
+  try{
+    const r=await request('/deepseek/chat?turn=1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,history:windowTurns()})});
+    session.pending={q,id:r.text,at:Date.now()};session.draft='';$('q').value='';save();transcript();await awaitResult();
+  }catch(e){lastError=e.message}
+  finally{sending=false;controls()}
+};
+transcript();renderState();refresh();if(session.pending)awaitResult();
+setInterval(()=>{if(!document.hidden)refresh()},4500);
+</script></body></html>
