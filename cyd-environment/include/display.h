@@ -61,11 +61,17 @@ class CYDDisplay : public lgfx::LGFX_Device {
       c.x_max = 239;
       c.y_min = 0;
       c.y_max = 319;
+      // Keep the IRQ gate: TP_IRQ has a 10k pull-up on this board, so the
+      // driver only clocks the touch bus while a finger is down. Polling all the
+      // time would put 1 MHz SPI bursts on GPIO25 (right next to the amp input
+      // on GPIO26) and hiss into the speaker.
       c.pin_int = TOUCH_IRQ;
       c.bus_shared = false;
       c.offset_rotation = 0;
       c.spi_host = VSPI_HOST;
-      c.freq = 2500000;
+      // XPT2046 tops out around 2.5 MHz and the panel ribbon adds capacitance;
+      // 1 MHz is far more tolerant of long wires/timing skew.
+      c.freq = 1000000;
       c.pin_sclk = TOUCH_SCLK;
       c.pin_mosi = TOUCH_MOSI;
       c.pin_miso = TOUCH_MISO;
