@@ -8,4 +8,8 @@ if ($env:MONITOR_TOKEN -eq "change-me-before-public-access" -or -not $env:MONITO
   Write-Error "公开访问前必须设置安全的 MONITOR_TOKEN，并与固件 API_TOKEN 保持一致。"
   exit 1
 }
+if (-not $env:MONITOR_VIEW_TOKEN) {
+  Write-Error "公开访问前必须设置 MONITOR_VIEW_TOKEN，作为网页查看密码。"
+  exit 1
+}
 & $cloudflared.Source tunnel --url "http://localhost:$Port"

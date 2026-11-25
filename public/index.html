@@ -3,26 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08111f">
   <title>ESP32 环境监测</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <main>
     <header>
-      <div><p class="eyebrow">ESP32 · DHT22</p><h1>温湿度检测</h1></div>
+      <div><p class="eyebrow">ESP32 CYD · 只读监控</p><h1>环境监测</h1></div>
       <span id="state" class="state offline">等待设备</span>
     </header>
+    <div id="alert" class="alert" hidden><strong>环境提醒</strong><span id="alertText"></span></div>
     <section class="cards">
       <article><span>温度</span><strong id="temperature">--.-</strong><em>°C</em></article>
       <article><span>湿度</span><strong id="humidity">--.-</strong><em>%RH</em></article>
-      <article><span>Wi‑Fi 信号</span><strong id="rssi">---</strong><em>dBm</em></article>
+      <article><span>结露余量</span><strong id="margin">--.-</strong><em>°C</em></article>
+    </section>
+    <section class="panel facts" aria-label="环境细节">
+      <div><span>露点</span><b id="dew">--</b></div>
+      <div><span>绝对湿度</span><b id="absolute">--</b></div>
+      <div><span>霉变风险</span><b id="mold">--</b></div>
+      <div><span>最近事件</span><b id="event">--</b></div>
     </section>
     <section class="panel">
       <div class="panel-head"><h2>最近趋势</h2><span id="updated">尚未收到数据</span></div>
       <canvas id="chart" height="300"></canvas>
       <div class="legend"><i class="temp"></i>温度 <i class="hum"></i>湿度</div>
     </section>
-    <footer><span id="device">设备：--</span><span id="uptime">运行：--</span></footer>
+    <footer><span id="device">设备：--</span><span>只读数据，设置请在本机局域网打开设备网页</span></footer>
   </main>
   <script src="/app.js"></script>
 </body>

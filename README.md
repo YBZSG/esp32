@@ -53,10 +53,48 @@ DHT22 继续使用 `P13`，与 LCD 不冲突。所有接线都应在断电状态
 
 ## 内网穿透
 
+### CYD 触摸屏版：只读中继 + 微信提醒
+
+电脑每 5 秒轮询 CYD 的 `/api`，不需要改固件；只读页面可以通过隧道公开，数据接口需要查看密码。
+
+1. 先在设备屏幕“网络”页连接 Wi-Fi，记下屏幕显示的设备 IP（例如 `192.168.1.50`）。
+2. 个人微信使用 PushPlus：浏览器打开 <https://www.pushplus.plus/>，微信扫码登录，复制页面上的 token；按提示关注“pushplus推送加”公众号后才能收到消息。
+3. 在能访问设备 IP 的电脑上启动上位机（把 token 换成真实值）：
+
+```powershell
+.\start-monitor.ps1 `
+  -Esp32Url "http://192.168.1.50" `
+  -Token "随机长字符串" `
+  -ViewToken "手机查看密码" `
+  -PushPlusToken "你的PushPlusToken" `
+  -TMin 20 -TMax 26 -HMin 40 -HMax 60 -HoldMin 10
+```
+
+企业微信 / 钉钉群机器人则用 `-NotifyWebhook "https://..."` 代替 `-PushPlusToken`；钉钉启用“加签”时再加 `-DingTalkSecret "SEC..."`。
+
+4. 本机打开 `http://localhost:8080/?key=手机查看密码` 确认页面正常。
+5. 需要外网访问时，在另一个 PowerShell 窗口设置同样的两个 Token，再启动隧道：
+
+```powershell
+$env:MONITOR_TOKEN = "随机长字符串"
+$env:MONITOR_VIEW_TOKEN = "手机查看密码"
+.\start-tunnel.ps1
+```
+
+提醒规则：
+
+- 设备网页 `/alert-config` 启用区间提醒时，直接使用设备计算结果（已包含容差和持续时间）。
+- 设备未启用时，电脑按 `-TMin`、`-TMax`、`-HMin`、`-HMax`、`-HoldMin` 判断。
+- 超出区间发一次提醒，恢复正常后再发一次；设置 `$env:NOTIFY_RECOVERY = "0"` 可关闭恢复通知。
+- 通知渠道可以同时配置 PushPlus 和群机器人，消息会并行发送。
+
+### DHT22 上位机版
+
 先确认局域网通信正常，再使用 `start-tunnel.ps1`。Quick Tunnel 会生成临时公网 HTTPS 地址，适合临时查看；不要使用默认 Token。公网地址仅用于打开仪表盘，ESP32 仍优先向局域网电脑地址上报，避免网络不稳定和额外暴露。
 
 ```powershell
 $env:MONITOR_TOKEN = "与你的固件相同的随机长字符串"
+$env:MONITOR_VIEW_TOKEN = "手机查看密码"
 .\start-tunnel.ps1
 ```
 
