@@ -35,7 +35,7 @@ const char WEB_PAGE[] PROGMEM = R"HTML(
 <button type="button" data-tab-target="device"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 6h6M11 18h2"/></svg>设备</button>
 </nav><script>
 const $=id=>document.getElementById(id);
-let snapshot=null,alertShown='',chatPending=false,tonePending=false,deviceBusy=false,pollTimer,daySnapshot=null,dayLoadedAt=0;
+let snapshot=null,alertShown='',chatPending=false,tonePending=false,deviceBusy=false,pollTimer,daySnapshot=null,dayLoadedAt=0,dayLoading=false;
 const number=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'--';
 function feedback(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error)}
 async function request(url,options={}){
@@ -83,8 +83,11 @@ function renderDay(d){
   daySnapshot=d;dayLoadedAt=Date.now();
 }
 async function loadDay(){
+  if(dayLoading)return;
+  dayLoading=true;
   try{const d=await(await request('/api/history24h')).json();renderDay(d)}
   catch(e){$('dayEmpty').hidden=false;$('dayCharts').hidden=true;$('dayEmpty').textContent='读取历史记录失败：'+message(e)}
+  finally{dayLoading=false}
 }
 function render(d){
   $('t').textContent=number(d.temperature);$('h').textContent=number(d.humidity);paint(d.temperature,'t');paint(d.humidity,'h');
@@ -126,11 +129,12 @@ function showTab(){
   document.body.dataset.tab=tab;
   document.querySelectorAll('[data-tab-target]').forEach(b=>{if(b.dataset.tabTarget===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   if(snapshot)charts(snapshot);
-  if(tab==='trend'&&Date.now()-dayLoadedAt>300000)loadDay();
+  if((tab==='trend'||matchMedia('(min-width:761px)').matches)&&Date.now()-dayLoadedAt>300000)loadDay();
 }
 document.querySelectorAll('[data-tab-target]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.tabTarget;window.scrollTo(0,0)});
 window.addEventListener('hashchange',showTab);showTab();
-new ResizeObserver(()=>{if(snapshot)charts(snapshot);if(daySnapshot&&document.body.dataset.tab==='trend')renderDay(daySnapshot)}).observe($('tChart').parentElement);
+window.addEventListener('resize',()=>{if(matchMedia('(min-width:761px)').matches&&Date.now()-dayLoadedAt>300000)loadDay()});
+new ResizeObserver(()=>{if(snapshot)charts(snapshot);if(daySnapshot&&(document.body.dataset.tab==='trend'||matchMedia('(min-width:761px)').matches))renderDay(daySnapshot)}).observe($('tChart').parentElement);
 load();
 </script></body></html>
 )HTML";
