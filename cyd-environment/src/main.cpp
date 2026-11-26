@@ -118,8 +118,9 @@ Preferences prefs;
 WebServer web(80);
 bool webStarted = false;
 struct ChatJob {
-  String question, answer, id;
+  String question, answer, id, daySummary;
   JsonDocument history;
+  uint8_t skin;
   bool ok = false, scoped = false;
   SemaphoreHandle_t done = nullptr;
 } chatJob;
@@ -644,6 +645,60 @@ String history24Json() {
   return json;
 }
 
+// 对话用的 24 小时摘要：只读 TF 卡尾部 64 KB，统计最近 24 小时（约 1440 条）
+// 的最低 / 最高温湿度和超标分钟数，供 DeepSeek 回答长时间范围的问题。
+// 结果缓存 5 分钟，避免每次提问都扫描 TF 卡以及与主循环的 CSV 写入争用。
+String daySummaryText() {
+  static String cached;
+  static uint32_t builtAt = 0;
+  if (cached.length() && millis() - builtAt < 300000UL) return cached;
+  if (!cardReady) {
+    cached = "过去24小时：TF 卡未挂载，无历史记录。";
+    builtAt = millis();
+    return cached;
+  }
+  FsFile file = storage.open("environment.csv", O_RDONLY);
+  if (!file) {
+    cached = "过去24小时：暂无历史记录。";
+    builtAt = millis();
+    return cached;
+  }
+  char line[64];
+  const uint32_t size = file.fileSize();
+  const uint32_t offset = size > 64UL * 1024 ? size - 64UL * 1024 : 0;
+  uint32_t lines = 0;
+  file.seekSet(offset);
+  if (offset) file.fgets(line, sizeof(line));
+  while (file.fgets(line, sizeof(line)) > 0) ++lines;
+  const uint32_t dataLines = offset ? lines : (lines ? lines - 1 : 0);
+  const uint32_t skip = dataLines > 1440 ? dataLines - 1440 : 0;
+  file.seekSet(offset);
+  file.fgets(line, sizeof(line));
+  for (uint32_t i = 0; i < skip && file.fgets(line, sizeof(line)) > 0; ++i) {}
+  uint32_t samples = 0, hot = 0, humid = 0;
+  float minT = NAN, maxT = NAN, minH = NAN, maxH = NAN;
+  while (file.fgets(line, sizeof(line)) > 0) {
+    unsigned long stamp;
+    float t, h;
+    if (sscanf(line, "%lu,%f,%f", &stamp, &t, &h) != 3) continue;
+    if (!isfinite(t) || !isfinite(h)) continue;
+    if (!samples) { minT = maxT = t; minH = maxH = h; }
+    minT = min(minT, t); maxT = max(maxT, t);
+    minH = min(minH, h); maxH = max(maxH, h);
+    if (t > 28.0f) ++hot;
+    if (h > 70.0f) ++humid;
+    ++samples;
+  }
+  file.close();
+  if (!samples) cached = "过去24小时：暂无历史记录。";
+  else cached = "过去24小时（TF 卡逐分钟记录）：样本 " + String(samples) + " 条，温度 " +
+                String(minT, 1) + "~" + String(maxT, 1) + "℃，湿度 " + String(minH, 0) + "~" +
+                String(maxH, 0) + "%，温度>28℃累计 " + String(hot) + " 分钟，湿度>70%累计 " +
+                String(humid) + " 分钟。";
+  builtAt = millis();
+  return cached;
+}
+
 // Allocate the tightly-sized Miku sprite (112x122 ~= 27 KB). Returns false and
 // leaves petCanvasReady cleared if no contiguous block is available yet.
 // 互斥锁：后台任务（对话 / 天气）会释放画布给 TLS 用，而 loopTask 可能正在
@@ -731,9 +786,9 @@ String askDeepSeek(const String& question) {
     JsonArray messages = request["messages"].to<JsonArray>();
     JsonObject system = messages.add<JsonObject>();
     system["role"] = "system";
-    String context = "你是 Miku，室内环境与节能助手。先回答用户当前问题，结合实测值说明判断依据，给出可执行的步骤和复测条件。"
+    String context = String("你是") + skinNames[chatJob.skin] + "，室内环境与节能助手。先回答用户当前问题，结合实测值说明判断依据，给出可执行的步骤和复测条件。"
                      "区分实测、短时趋势和推测。结露余量是室温减露点，设备未测窗面或墙温；评估结露时说明表面温度与露点的关系。"
-                     "null 表示无数据。上下文不足时说明缺少哪项信息。"
+                     "null 表示无数据。上下文不足时说明缺少哪项信息。询问过去一天等长时间范围时，使用给出的 24 小时统计。"
                      "日常闲聊自然简短。用简体中文和短段落回答。当前室内温度(℃) " + jsonNumber(temperature) +
                      "，相对湿度(%) " + jsonNumber(humidity) + "，露点(℃) " + jsonNumber(dewPoint(temperature, humidity)) +
                      "，结露余量(℃) " + jsonNumber(condensationMargin()) + "，湿度风险持续分钟 " + String(moldMinutes) +
@@ -742,6 +797,7 @@ String askDeepSeek(const String& question) {
                                   "%，更新于 " + String((millis() - weatherAt) / 60000) + " 分钟前。";
     if (lastEventText.length() && lastEventAt && millis() - lastEventAt < 1800000UL)
       context += "近期环境事件：" + lastEventText;
+    if (chatJob.daySummary.length()) context += chatJob.daySummary;
     system["content"] = context;
     for (JsonObject turn : chatJob.history.as<JsonArray>()) messages.add(turn);
     chatJob.history.clear();
@@ -1443,7 +1499,7 @@ void startWebServer() {
       "<style>body{font-family:system-ui,'Microsoft YaHei',sans-serif;max-width:520px;margin:24px auto;padding:0 14px;line-height:1.8}"
       "input,select,button{width:100%;padding:10px;border:1px solid #ccd5e3;border-radius:10px;font:inherit;margin:6px 0 12px}"
       "button{background:#20a66a;color:#fff;border:0;font-weight:700}</style>"
-      "<link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回环境健康助手</a><h3>室外天气设置</h3><p>使用 Open-Meteo 免费接口（无需 API Key），每 30 分钟自动更新；也可点下方按钮立即刷新。</p><form method='post'>"
+      "<link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回息灵 EcoBit</a><h3>室外天气设置</h3><p>使用 Open-Meteo 免费接口（无需 API Key），每 30 分钟自动更新；也可点下方按钮立即刷新。</p><form method='post'>"
       "<label>显示名称<input name='place' maxlength='20' value='" + weatherPlace + "'></label>"
       "<label>常用城市<select onchange=\"let o=this.options[this.selectedIndex],f=this.form;if(o.dataset.lat){f.lat.value=o.dataset.lat;f.lon.value=o.dataset.lon;f.place.value=o.value}\">"
       "<option value=''>-- 选择自动填充 --</option>"
@@ -1535,7 +1591,7 @@ void startWebServer() {
       "input,button{width:100%;padding:10px;border:1px solid #ccd5e3;border-radius:10px;font:inherit;margin:6px 0 12px}"
       "input[type=checkbox]{width:auto;margin-right:8px}button{background:#20a66a;color:#fff;border:0;font-weight:700}"
       "button.alt{background:#2b6cb0}.row{display:flex;gap:10px}.row>*{flex:1}</style>"
-      "<link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回环境健康助手</a><h3>区间提醒设置</h3><p>温湿度超出舒适区、并偏离超过设定百分比，持续达到设定时长后提醒一次；回到区间后重新计时。可用于吉他保养等场景。</p>"
+      "<link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回息灵 EcoBit</a><h3>区间提醒设置</h3><p>温湿度超出舒适区、并偏离超过设定百分比，持续达到设定时长后提醒一次；回到区间后重新计时。可用于吉他保养等场景。</p>"
       "<div class='row'><button class='alt' type='button' onclick='preset(20,26,45,55,5,10)'>吉他保养预设</button>"
       "<button class='alt' type='button' onclick='preset(20,26,40,60,5,10)'>居家舒适预设</button></div>"
       "<form method='post'><label><input type='checkbox' name='en'" + String(alertEnabled ? " checked" : "") + ">启用区间提醒</label>"
@@ -1587,7 +1643,7 @@ void startWebServer() {
     web.send(200, "text/plain; charset=utf-8", "API Key 已保存在设备中，页面不会回显。");
   });
   web.on("/qwen-config", HTTP_GET, [] {
-    String html = "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>语音设置 · 环境健康助手</title><link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回环境健康助手</a><h1>语音设置</h1><p>密钥只写入 ESP32，不会回显。</p><p>填写百炼控制台创建的 API Key（通常以 <code>sk-</code> 开头）和音色 ID。实时语音服务地址已内置，无需填写 Base URL。</p><form method='post'><label>百炼 API Key<br><input name='key' type='password' autocomplete='off' placeholder='留空表示保持原密钥'></label><br><label>音色 ID<br><input name='voice' value='" + qwenVoice + "' placeholder='例如 Cherry'></label><br><button>保存配置</button></form><p>保存后，在主网页发送 DeepSeek 对话即可播放语音。</p><h3>测试朗读</h3><form method='post' action='/qwen-say'><label>文本<br><input name='plain' value='你好，我是环境管家，现在可以说话了'></label><br><button>朗读这段文字</button></form>";
+    String html = "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>语音设置 · 息灵 EcoBit</title><link rel='stylesheet' href='/ui.css'><body class='settings-page'><a class='back' href='/'>返回息灵 EcoBit</a><h1>语音设置</h1><p>密钥只写入 ESP32，不会回显。</p><p>填写百炼控制台创建的 API Key（通常以 <code>sk-</code> 开头）和音色 ID。实时语音服务地址已内置，无需填写 Base URL。</p><form method='post'><label>百炼 API Key<br><input name='key' type='password' autocomplete='off' placeholder='留空表示保持原密钥'></label><br><label>音色 ID<br><input name='voice' value='" + qwenVoice + "' placeholder='例如 Cherry'></label><br><button>保存配置</button></form><p>保存后，在主网页发送 DeepSeek 对话即可播放语音。</p><h3>测试朗读</h3><form method='post' action='/qwen-say'><label>文本<br><input name='plain' value='你好，我是环境管家，现在可以说话了'></label><br><button>朗读这段文字</button></form>";
     web.send(200, "text/html; charset=utf-8", html);
   });
   web.on("/qwen-config", HTTP_POST, [] {
@@ -1624,29 +1680,35 @@ void startWebServer() {
     const bool scoped = web.hasArg("turn");
     JsonDocument payload;
     if (scoped) {
-      if (web.arg("plain").length() > 10000 || deserializeJson(payload, web.arg("plain")) ||
+      if (web.arg("plain").length() > 20000 || deserializeJson(payload, web.arg("plain")) ||
           !payload["history"].is<JsonArray>() || !payload["question"].is<String>()) {
         web.send(400, "text/plain", "消息格式无效"); return;
       }
       JsonArray history = payload["history"];
       size_t i = 0, bytes = 0;
-      bool valid = history.size() <= 8 && history.size() % 2 == 0;
+      bool valid = history.size() <= 16 && history.size() % 2 == 0;
       for (JsonObject turn : history) {
         const char* content = turn["content"] | "";
         bytes += strlen(content);
         if (!*content || turn.size() != 2 || turn["role"] != (i++ % 2 ? "assistant" : "user")) valid = false;
       }
-      if (!valid || bytes > 3600) { web.send(400, "text/plain", "上下文超过窗口或轮次不完整"); return; }
+      if (!valid || bytes > 7200) { web.send(400, "text/plain", "上下文超过窗口或轮次不完整"); return; }
+      const JsonVariantConst requestedSkin = payload["skin"];
+      if (!requestedSkin.isNull() && requestedSkin != selectedSkin) {
+        web.send(409, "text/plain; charset=utf-8", "设备角色已切换，请核对当前角色后重新发送。"); return;
+      }
       question = payload["question"].as<String>();
     } else question = web.arg("plain");
     question.trim();
     if (!question.length() || question.length() > 600) { web.send(400, "text/plain; charset=utf-8", "问题限 1 至 600 字节。"); return; }
     chatJob.history.set(payload["history"]);
+    chatJob.daySummary = daySummaryText();
     chatJob.scoped = scoped;
+    chatJob.skin = selectedSkin;
     chatJob.id = String(esp_random(), HEX) + "-" + String(esp_random(), HEX);
     chatJob.ok = false;
     page = PET;
-    petReply = "Miku：正在思考…";
+    petReply = String(skinNames[chatJob.skin]) + "：正在思考…";
     startPetMotion(PET_WORKING, 30000);
     drawPage();
     chatJob.question = question;
@@ -1665,7 +1727,7 @@ void startWebServer() {
       web.send(503, "text/plain; charset=utf-8", petReply);
       return;
     }
-    web.send(202, "text/plain; charset=utf-8", scoped ? chatJob.id : String("Miku 正在思考…"));
+    web.send(202, "text/plain; charset=utf-8", scoped ? chatJob.id : petReply);
   });
   web.onNotFound([] { web.send(404, "text/plain; charset=utf-8", "页面不存在"); });
   web.on("/deepseek/result", HTTP_GET, [] {

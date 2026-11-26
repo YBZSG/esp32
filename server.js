@@ -132,11 +132,11 @@ function fallbackAlertText(sample) {
 }
 
 function alertMessage(text) {
-  return `【ESP32 环境提醒】\n${text}\n时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`;
+  return `【息灵 EcoBit 提醒】\n${text}\n时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`;
 }
 
 function recoveryMessage(sample) {
-  return `【ESP32 环境恢复】\n当前 ${sample.temperature.toFixed(1)}℃、` +
+  return `【息灵 EcoBit 恢复】\n当前 ${sample.temperature.toFixed(1)}℃、` +
     `${sample.humidity.toFixed(1)}%RH，已回到预设区间。\n` +
     `时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`;
 }
@@ -165,7 +165,7 @@ async function sendRobot(text) {
 }
 
 async function sendPushPlus(text) {
-  const title = text.includes('环境恢复') ? 'ESP32 环境恢复' : 'ESP32 环境提醒';
+  const title = text.includes('环境恢复') ? '息灵 EcoBit 恢复' : '息灵 EcoBit 提醒';
   try {
     const response = await fetch(PUSHPLUS_API, {
       method: 'POST',
@@ -278,7 +278,7 @@ async function assistantRequest(req, res, url) {
       let length = 0;
       for await (const chunk of req) {
         length += chunk.length;
-        if (length > 10000) return plain(413, '消息超过设备的上下文容量。');
+        if (length > 20000) return plain(413, '消息超过设备的上下文容量。');
         chunks.push(chunk);
       }
       options.body = Buffer.concat(chunks);
